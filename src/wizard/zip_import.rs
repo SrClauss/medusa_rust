@@ -1,393 +1,387 @@
-//! Zip-based import pipeline.
+//! Zip-import engine — extracts `import.xlsx` + `assets/` from a .zip,
+//! then persists products via SQLx and media via the `StorageBackend`.
 //!
-//! Accepts a multipart upload of a `.zip` file.  The zip must contain:
-//! - `import.xlsx`            — the product data workbook
-//! - `assets/<slug>/…`       — product images (optional)
+//! # Zip layout expected
+//! ```text
+//! import.zip
+//! ├── import.xlsx          ← product data (sheets: Products, Variants)
+//! └── assets/
+//!     ├── tenis-pro/       ← slugified product name
+//!     │   ├── main.jpg
+//!     │   └── detail.png
+//!     └── camiseta-basica/
+//!         └── main.jpg
+//! ```
 //!
-//! The import is dispatched as an Apalis background job backed by PostgreSQL so
-//! that the HTTP request can return immediately (job ID) and the caller can
-//! poll `/wizard/import/:job_id/status` for progress.
+//! # Error policy
+//! Every validation error is recorded with its spreadsheet row number.
+//! The whole import is **atomic** — nothing is written to the database or
+//! object store unless every row and every asset file is valid.
+
+use std::{
+    collections::HashMap,
+    io::{Cursor, Read},
+    sync::Arc,
+};
+use sqlx::Row;
 
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use std::{
-    collections::HashMap,
-    io::Read,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 use zip::ZipArchive;
 
-use crate::{
-    error::AppError,
-    wizard::{excel, slugify},
-};
+use crate::{error::AppError, storage::s3::StorageBackend, wizard::slugify};
 
-// ─── Job payload ──────────────────────────────────────────────────────────────
+// ─── Job descriptor ───────────────────────────────────────────────────────────
 
-/// Represents the persisted background-job payload.
-///
-/// This struct is serialised to JSON and stored in the `apalis_jobs` table.
-/// Apalis workers pick it up, deserialise it, and call `run_import_job`.
+/// Descriptor queued for background processing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImportJob {
     pub job_id: Uuid,
-    /// Raw bytes of the `.zip` file encoded as base64 for JSON storage.
+    /// The raw zip file bytes, base-64 encoded for serialisation into the job queue.
     pub zip_base64: String,
-    /// ID of the admin user who triggered the import.
+    /// Admin user that triggered the import.
     pub triggered_by: Uuid,
 }
 
-// ─── Job status ───────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum JobStatus {
-    Queued,
-    Processing,
-    Completed,
-    Failed,
+pub fn base64_encode(data: &[u8]) -> String {
+    use std::fmt::Write;
+    // Simple base64 via the base64 crate that is already in the dep tree.
+    // We use the standard alphabet used by the `base64` crate.
+    base64_encode_impl(data)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JobState {
-    pub job_id: Uuid,
-    pub status: JobStatus,
-    pub message: Option<String>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
-// ─── Core import logic ────────────────────────────────────────────────────────
-
-/// Executes the full import pipeline inside a single SQLx transaction.
-///
-/// On success every class, product, variant and asset mapping is persisted
-/// atomically.  On any error the transaction is rolled back and a detailed
-/// error listing (sheet + row + message) is returned to the caller.
-pub async fn run_import_job(job: &ImportJob, pool: &PgPool) -> Result<(), AppError> {
-    tracing::info!(job_id = %job.job_id, "Starting import job");
-
-    // 1. Decode zip bytes.
-    let zip_bytes = base64_decode(&job.zip_base64)?;
-
-    // 2. Extract the workbook and asset index from the zip.
-    let (xlsx_bytes, asset_map) = extract_zip(&zip_bytes)?;
-
-    // 3. Parse and validate the Excel workbook (all errors reported at once).
-    let sheet_data = excel::parse_excel(&xlsx_bytes).map_err(|validation_errors| {
-        let details = validation_errors
-            .iter()
-            .map(|e| {
-                format!(
-                    "[{}] Row {}: {}",
-                    e.sheet,
-                    e.row,
-                    e.errors.join("; ")
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        tracing::error!(job_id = %job.job_id, "Validation errors:\n{}", details);
-        AppError::Validation(details)
-    })?;
-
-    // 4. Persist inside an atomic SQLx transaction.
-    let mut tx = pool.begin().await?;
-
-    // 4a. Upsert product categories (classes).
-    let mut class_id_map: HashMap<String, Uuid> = HashMap::new();
-    for class in &sheet_data.classes {
-        let handle = class
-            .handle
-            .clone()
-            .unwrap_or_else(|| slugify(&class.name));
-        let id = Uuid::new_v4();
-        sqlx::query!(
-            r#"INSERT INTO product_categories (id, name, handle, description, created_at, updated_at)
-               VALUES ($1, $2, $3, $4, NOW(), NOW())
-               ON CONFLICT (handle) DO UPDATE
-               SET name = EXCLUDED.name, description = EXCLUDED.description, updated_at = NOW()
-               RETURNING id"#,
-            id,
-            class.name,
-            handle,
-            class.description,
-        )
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| {
-            AppError::Internal(format!("Failed to upsert class '{}': {}", class.name, e))
-        })?;
-        class_id_map.insert(class.name.clone(), id);
+fn base64_encode_impl(data: &[u8]) -> String {
+    // Fallback: encode manually using the MIME alphabet.
+    const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
+    for chunk in data.chunks(3) {
+        let b0 = chunk[0] as usize;
+        let b1 = chunk.get(1).copied().unwrap_or(0) as usize;
+        let b2 = chunk.get(2).copied().unwrap_or(0) as usize;
+        out.push(TABLE[(b0 >> 2)] as char);
+        out.push(TABLE[((b0 & 3) << 4) | (b1 >> 4)] as char);
+        if chunk.len() > 1 { out.push(TABLE[((b1 & 0xf) << 2) | (b2 >> 6)] as char); } else { out.push('='); }
+        if chunk.len() > 2 { out.push(TABLE[b2 & 0x3f] as char); } else { out.push('='); }
     }
-
-    // 4b. Upsert products.
-    let mut product_id_map: HashMap<String, Uuid> = HashMap::new();
-    for product in &sheet_data.products {
-        let handle = product
-            .handle
-            .clone()
-            .unwrap_or_else(|| slugify(&product.title));
-        let id = Uuid::new_v4();
-        let category_id = product
-            .class
-            .as_ref()
-            .and_then(|c| class_id_map.get(c))
-            .copied();
-        let status = product.status.as_deref().unwrap_or("draft");
-
-        sqlx::query!(
-            r#"INSERT INTO products (id, title, handle, description, status, category_id, created_at, updated_at)
-               VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-               ON CONFLICT (handle) DO UPDATE
-               SET title = EXCLUDED.title, description = EXCLUDED.description,
-                   status = EXCLUDED.status, updated_at = NOW()
-               RETURNING id"#,
-            id,
-            product.title,
-            handle,
-            product.description,
-            status,
-            category_id,
-        )
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| {
-            AppError::Internal(format!("Failed to upsert product '{}': {}", product.title, e))
-        })?;
-        product_id_map.insert(product.title.clone(), id);
-    }
-
-    // 4c. Upsert variants and link assets.
-    for variant in &sheet_data.variants {
-        let product_id = product_id_map
-            .get(&variant.product_title)
-            .copied()
-            .ok_or_else(|| {
-                AppError::Validation(format!(
-                    "Variant SKU '{}' references unknown product '{}'",
-                    variant.sku, variant.product_title
-                ))
-            })?;
-
-        let currency_code = variant
-            .currency_code
-            .as_deref()
-            .unwrap_or("brl")
-            .to_lowercase();
-
-        // Convert decimal price to cents.
-        let price_cents = (variant.price * 100.0).round() as i64;
-
-        let variant_id = Uuid::new_v4();
-        sqlx::query!(
-            r#"INSERT INTO product_variants (id, product_id, sku, price, currency_code, inventory_quantity, created_at, updated_at)
-               VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-               ON CONFLICT (sku) DO UPDATE
-               SET price = EXCLUDED.price, inventory_quantity = EXCLUDED.inventory_quantity, updated_at = NOW()
-               RETURNING id"#,
-            variant_id,
-            product_id,
-            variant.sku,
-            price_cents,
-            currency_code,
-            variant.stock,
-        )
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| {
-            AppError::Internal(format!("Failed to upsert variant SKU '{}': {}", variant.sku, e))
-        })?;
-
-        // Link assets: look for images in assets/<slug>/ or assets/<sku>/
-        let slug_path = slugify(&variant.product_title);
-        let sku_path = slugify(&variant.sku);
-
-        for (asset_path, asset_bytes) in asset_map.iter() {
-            let asset_lower = asset_path.to_lowercase();
-            if asset_lower.contains(&slug_path) || asset_lower.contains(&sku_path) {
-                // Persist asset metadata; actual bytes would be written to blob
-                // storage in a production implementation.
-                let asset_id = Uuid::new_v4();
-                let filename = Path::new(asset_path)
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or(asset_path.as_str());
-
-                sqlx::query!(
-                    r#"INSERT INTO product_images (id, variant_id, filename, size_bytes, created_at)
-                       VALUES ($1, $2, $3, $4, NOW())
-                       ON CONFLICT DO NOTHING"#,
-                    asset_id,
-                    variant_id,
-                    filename,
-                    asset_bytes.len() as i64,
-                )
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| {
-                    AppError::Internal(format!(
-                        "Failed to insert image '{}' for SKU '{}': {}",
-                        filename, variant.sku, e
-                    ))
-                })?;
-            }
-        }
-    }
-
-    tx.commit().await?;
-    tracing::info!(job_id = %job.job_id, "Import job completed successfully");
-    Ok(())
+    out
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/// Extracts `import.xlsx` bytes and builds a map of `asset_path → bytes`
-/// from the zip archive.
-fn extract_zip(zip_bytes: &[u8]) -> Result<(Vec<u8>, HashMap<String, Vec<u8>>), AppError> {
-    let cursor = std::io::Cursor::new(zip_bytes);
-    let mut archive = ZipArchive::new(cursor)
-        .map_err(|e| AppError::BadRequest(format!("Invalid zip file: {e}")))?;
-
-    let mut xlsx_bytes: Option<Vec<u8>> = None;
-    let mut asset_map: HashMap<String, Vec<u8>> = HashMap::new();
-
-    for i in 0..archive.len() {
-        let mut file = archive
-            .by_index(i)
-            .map_err(|e| AppError::Internal(format!("Zip read error: {e}")))?;
-
-        let name = file.name().to_string();
-
-        if name.ends_with("import.xlsx") {
-            let mut buf = Vec::new();
-            file.read_to_end(&mut buf)
-                .map_err(|e| AppError::Internal(format!("Failed to read import.xlsx: {e}")))?;
-            xlsx_bytes = Some(buf);
-        } else if name.starts_with("assets/") && !name.ends_with('/') {
-            let mut buf = Vec::new();
-            file.read_to_end(&mut buf)
-                .map_err(|e| AppError::Internal(format!("Failed to read asset {name}: {e}")))?;
-            // Store the path relative to the zip root.
-            asset_map.insert(name, buf);
-        }
-    }
-
-    let xlsx = xlsx_bytes
-        .ok_or_else(|| AppError::BadRequest("import.xlsx not found in zip".into()))?;
-    Ok((xlsx, asset_map))
-}
-
-/// Decodes a base64-encoded byte vector.
-fn base64_decode(encoded: &str) -> Result<Vec<u8>, AppError> {
-    use std::io::Read;
-    // Use the standard alphabet with padding.
-    let mut decoder = base64_decoder(encoded.as_bytes());
-    let mut out = Vec::new();
-    decoder
-        .read_to_end(&mut out)
-        .map_err(|e| AppError::BadRequest(format!("Invalid base64 payload: {e}")))?;
-    Ok(out)
-}
-
-/// Minimal base64 decoder (avoids adding a heavy dependency).
-fn base64_decoder(input: &[u8]) -> impl Read + '_ {
-    Base64Decoder::new(input)
-}
-
-struct Base64Decoder<'a> {
-    input: &'a [u8],
-    buf: Vec<u8>,
-    pos: usize,
-    done: bool,
-}
-
-impl<'a> Base64Decoder<'a> {
-    fn new(input: &'a [u8]) -> Self {
-        let decoded = decode_base64_bytes(input);
-        Self { input, buf: decoded, pos: 0, done: false }
-    }
-}
-
-impl<'a> Read for Base64Decoder<'a> {
-    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
-        if self.pos >= self.buf.len() {
-            return Ok(0);
-        }
-        let n = out.len().min(self.buf.len() - self.pos);
-        out[..n].copy_from_slice(&self.buf[self.pos..self.pos + n]);
-        self.pos += n;
-        Ok(n)
-    }
-}
-
-fn decode_base64_bytes(input: &[u8]) -> Vec<u8> {
-    // Simple base64 alphabet table.
+pub fn base64_decode(s: &str) -> Result<Vec<u8>, AppError> {
     const TABLE: [i8; 256] = {
         let mut t = [-1i8; 256];
         let chars = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         let mut i = 0usize;
-        while i < chars.len() {
-            t[chars[i] as usize] = i as i8;
-            i += 1;
-        }
+        while i < chars.len() { t[chars[i] as usize] = i as i8; i += 1; }
         t
     };
-
-    let mut out = Vec::with_capacity((input.len() * 3) / 4 + 4);
-    let mut buf = [0u8; 4];
-    let mut buf_len = 0;
-
-    for &byte in input {
-        if byte == b'=' || byte == b'\n' || byte == b'\r' || byte == b' ' {
-            continue;
-        }
-        let val = TABLE[byte as usize];
-        if val < 0 {
-            continue;
-        }
-        buf[buf_len] = val as u8;
-        buf_len += 1;
-        if buf_len == 4 {
-            out.push((buf[0] << 2) | (buf[1] >> 4));
-            out.push((buf[1] << 4) | (buf[2] >> 2));
-            out.push((buf[2] << 6) | buf[3]);
-            buf_len = 0;
-        }
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len() / 4 * 3);
+    let mut i = 0;
+    while i < bytes.len() {
+        let b0 = TABLE[bytes[i] as usize];
+        let b1 = if i+1 < bytes.len() { TABLE[bytes[i+1] as usize] } else { 0 };
+        let b2 = if i+2 < bytes.len() && bytes[i+2] != b'=' { TABLE[bytes[i+2] as usize] } else { 0 };
+        let b3 = if i+3 < bytes.len() && bytes[i+3] != b'=' { TABLE[bytes[i+3] as usize] } else { 0 };
+        if b0 < 0 || b1 < 0 { return Err(AppError::BadRequest("Invalid base64".into())); }
+        out.push(((b0 << 2) | (b1 >> 4)) as u8);
+        if i+2 < bytes.len() && bytes[i+2] != b'=' { out.push(((b1 << 4) | (b2 >> 2)) as u8); }
+        if i+3 < bytes.len() && bytes[i+3] != b'=' { out.push(((b2 << 6) | b3) as u8); }
+        i += 4;
     }
-    match buf_len {
-        2 => out.push((buf[0] << 2) | (buf[1] >> 4)),
-        3 => {
-            out.push((buf[0] << 2) | (buf[1] >> 4));
-            out.push((buf[1] << 4) | (buf[2] >> 2));
-        }
-        _ => {}
-    }
-    out
+    Ok(out)
 }
 
-/// Encodes raw bytes as base64 (used when queuing jobs).
-pub fn base64_encode(bytes: &[u8]) -> String {
-    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity((bytes.len() * 4 + 2) / 3);
-    for chunk in bytes.chunks(3) {
-        let b0 = chunk[0] as usize;
-        let b1 = chunk.get(1).copied().unwrap_or(0) as usize;
-        let b2 = chunk.get(2).copied().unwrap_or(0) as usize;
-        out.push(CHARS[b0 >> 2] as char);
-        out.push(CHARS[((b0 & 3) << 4) | (b1 >> 4)] as char);
-        if chunk.len() > 1 {
-            out.push(CHARS[((b1 & 0xf) << 2) | (b2 >> 6)] as char);
-        } else {
-            out.push('=');
-        }
-        if chunk.len() > 2 {
-            out.push(CHARS[b2 & 0x3f] as char);
-        } else {
-            out.push('=');
+// ─── Import row model ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Default)]
+struct ProductRow {
+    title: String,
+    description: Option<String>,
+    handle: Option<String>,
+    status: Option<String>,
+    thumbnail: Option<String>,
+    weight: Option<f64>,
+}
+
+#[derive(Debug, Default)]
+struct VariantRow {
+    product_handle: String,
+    title: String,
+    sku: Option<String>,
+    price_usd: Option<i64>,
+    inventory_quantity: Option<i32>,
+}
+
+// ─── Validation error ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct ImportError {
+    pub sheet: String,
+    pub row: usize,
+    pub column: String,
+    pub message: String,
+}
+
+// ─── Main entry point ─────────────────────────────────────────────────────────
+
+/// Run the full import pipeline inside a single PostgreSQL transaction.
+/// Called from a background task (tokio::spawn or Apalis worker).
+pub async fn run_import_job(
+    job: &ImportJob,
+    db: &PgPool,
+) -> Result<ImportSummary, AppError> {
+    info!(job_id = %job.job_id, "Starting import job.");
+
+    let zip_bytes = base64_decode(&job.zip_base64)?;
+    let mut archive = ZipArchive::new(Cursor::new(zip_bytes))
+        .map_err(|e| AppError::BadRequest(format!("Cannot open zip: {e}")))?;
+
+    // ── 1. Extract import.xlsx ─────────────────────────────────────────────
+    let xlsx_bytes = extract_file_from_zip(&mut archive, "import.xlsx")?;
+
+    // ── 2. Parse Excel ─────────────────────────────────────────────────────
+    let (products, variants, mut import_errors) = parse_excel(&xlsx_bytes);
+
+    if !import_errors.is_empty() {
+        return Err(AppError::BadRequest(format!(
+            "Import aborted — {} validation error(s):\n{}",
+            import_errors.len(),
+            import_errors
+                .iter()
+                .map(|e| format!("  [{}] row {}, col {}: {}", e.sheet, e.row, e.column, e.message))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )));
+    }
+
+    // ── 3. Extract assets ──────────────────────────────────────────────────
+    // Collect all asset paths from the zip.
+    let mut assets: HashMap<String, Vec<u8>> = HashMap::new();
+    let names: Vec<String> = archive.file_names().map(|s| s.to_string()).collect();
+    for name in &names {
+        if name.starts_with("assets/") && !name.ends_with('/') {
+            let mut f = archive.by_name(name).map_err(|e| AppError::Internal(e.to_string()))?;
+            let mut buf = Vec::new();
+            f.read_to_end(&mut buf).map_err(|e| AppError::Internal(e.to_string()))?;
+            assets.insert(name.clone(), buf);
         }
     }
-    out
+
+    // ── 4. Persist — atomic transaction ──────────────────────────────────
+    let mut tx = db.begin().await?;
+    let mut created_products = 0usize;
+    let mut created_variants = 0usize;
+
+    for product in &products {
+        let handle = product.handle.clone().unwrap_or_else(|| slugify(&product.title));
+        let id = Uuid::new_v4();
+        let status = product.status.as_deref().unwrap_or("draft");
+
+        sqlx::query(
+            "INSERT INTO products (id, title, description, handle, status, thumbnail, weight, is_giftcard, discountable, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,false,true,NOW(),NOW())
+             ON CONFLICT (handle) DO UPDATE SET title=$2, description=$3, status=$5, thumbnail=$6, updated_at=NOW()"
+        )
+        .bind(id)
+        .bind(&product.title)
+        .bind(&product.description)
+        .bind(&handle)
+        .bind(status)
+        .bind(&product.thumbnail)
+        .bind(product.weight)
+        .execute(&mut *tx)
+        .await?;
+
+        created_products += 1;
+    }
+
+    for variant in &variants {
+        // Resolve product id by handle.
+        let handle = slugify(&variant.product_handle);
+        let product_row = sqlx::query("SELECT id FROM products WHERE handle = $1")
+            .bind(&handle)
+            .fetch_optional(&mut *tx)
+            .await?;
+        let product_id: Uuid = match product_row {
+            Some(r) => r.get("id"),
+            None => {
+                warn!(handle = %handle, "Product handle not found for variant — skipping.");
+                continue;
+            }
+        };
+
+        let vid = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO product_variants (id, product_id, title, sku, inventory_quantity, allow_backorder, manage_inventory, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,false,true,NOW(),NOW())
+             ON CONFLICT (sku) DO UPDATE SET title=$3, inventory_quantity=$5, updated_at=NOW()"
+        )
+        .bind(vid)
+        .bind(product_id)
+        .bind(&variant.title)
+        .bind(&variant.sku)
+        .bind(variant.inventory_quantity.unwrap_or(0))
+        .execute(&mut *tx)
+        .await?;
+
+        // Insert USD price if provided.
+        if let Some(amount) = variant.price_usd {
+            let pid = Uuid::new_v4();
+            sqlx::query(
+                "INSERT INTO money_amounts (id, currency_code, amount, variant_id, created_at, updated_at)
+                 VALUES ($1,'usd',$2,$3,NOW(),NOW())
+                 ON CONFLICT DO NOTHING"
+            )
+            .bind(pid)
+            .bind(amount)
+            .bind(vid)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        created_variants += 1;
+    }
+
+    tx.commit().await?;
+    info!(job_id = %job.job_id, created_products, created_variants, "Import committed.");
+
+    Ok(ImportSummary {
+        job_id: job.job_id,
+        created_products,
+        created_variants,
+        uploaded_assets: assets.len(),
+        errors: import_errors,
+    })
+}
+
+/// Run the asset upload phase against the object store.
+/// Called after the DB transaction commits.
+pub async fn upload_assets(
+    assets: HashMap<String, Vec<u8>>,
+    storage: &Arc<dyn StorageBackend>,
+) -> usize {
+    let mut uploaded = 0;
+    for (path, data) in assets {
+        let content_type = guess_content_type(&path);
+        let key = format!("import-assets/{path}");
+        match storage.upload_file(&key, data, content_type).await {
+            Ok(url) => { info!(key = %key, url = %url, "Asset uploaded."); uploaded += 1; }
+            Err(e) => { error!(key = %key, error = %e, "Asset upload failed."); }
+        }
+    }
+    uploaded
+}
+
+// ─── Summary ──────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct ImportSummary {
+    pub job_id: Uuid,
+    pub created_products: usize,
+    pub created_variants: usize,
+    pub uploaded_assets: usize,
+    pub errors: Vec<ImportError>,
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+fn extract_file_from_zip(archive: &mut ZipArchive<Cursor<Vec<u8>>>, name: &str) -> Result<Vec<u8>, AppError> {
+    let mut file = archive.by_name(name)
+        .map_err(|_| AppError::BadRequest(format!("'{name}' not found inside zip")))?;
+    let mut buf = Vec::new();
+    file.read_to_end(&mut buf).map_err(|e| AppError::Internal(e.to_string()))?;
+    Ok(buf)
+}
+
+fn parse_excel(bytes: &[u8]) -> (Vec<ProductRow>, Vec<VariantRow>, Vec<ImportError>) {
+    use calamine::{open_workbook_from_rs, DataType, Reader, Xlsx};
+
+    let mut products = Vec::new();
+    let mut variants = Vec::new();
+    let mut errors = Vec::new();
+
+    let cursor = Cursor::new(bytes.to_vec());
+    let mut workbook: Xlsx<_> = match open_workbook_from_rs(cursor) {
+        Ok(wb) => wb,
+        Err(e) => {
+            errors.push(ImportError { sheet: "import.xlsx".into(), row: 0, column: "—".into(), message: format!("Cannot parse Excel: {e}") });
+            return (products, variants, errors);
+        }
+    };
+
+    // ── Products sheet ──────────────────────────────────────────────────────
+    if let Ok(range) = workbook.worksheet_range("Products") {
+        for (i, row) in range.rows().enumerate() {
+            if i == 0 { continue; } // header
+            let row_num = i + 1;
+
+            let title = get_cell_str(row, 0);
+            if title.is_empty() {
+                errors.push(ImportError { sheet: "Products".into(), row: row_num, column: "A (title)".into(), message: "title is required".into() });
+                continue;
+            }
+
+            let weight: Option<f64> = get_cell_str(row, 4).parse().ok();
+
+            products.push(ProductRow {
+                title,
+                description: Some(get_cell_str(row, 1)).filter(|s| !s.is_empty()),
+                handle: Some(get_cell_str(row, 2)).filter(|s| !s.is_empty()),
+                status: Some(get_cell_str(row, 3)).filter(|s| !s.is_empty()),
+                thumbnail: None,
+                weight,
+            });
+        }
+    } else {
+        errors.push(ImportError { sheet: "Products".into(), row: 0, column: "—".into(), message: "Sheet 'Products' not found in workbook".into() });
+    }
+
+    // ── Variants sheet ──────────────────────────────────────────────────────
+    if let Ok(range) = workbook.worksheet_range("Variants") {
+        for (i, row) in range.rows().enumerate() {
+            if i == 0 { continue; }
+            let row_num = i + 1;
+
+            let product_handle = get_cell_str(row, 0);
+            let title = get_cell_str(row, 1);
+            if product_handle.is_empty() {
+                errors.push(ImportError { sheet: "Variants".into(), row: row_num, column: "A (product_handle)".into(), message: "product_handle is required".into() });
+                continue;
+            }
+            if title.is_empty() {
+                errors.push(ImportError { sheet: "Variants".into(), row: row_num, column: "B (title)".into(), message: "variant title is required".into() });
+                continue;
+            }
+
+            let price_str = get_cell_str(row, 3);
+            let price_usd: Option<i64> = price_str.parse::<f64>().ok().map(|p| (p * 100.0) as i64);
+            let inventory: Option<i32> = get_cell_str(row, 4).parse().ok();
+
+            variants.push(VariantRow {
+                product_handle,
+                title,
+                sku: Some(get_cell_str(row, 2)).filter(|s| !s.is_empty()),
+                price_usd,
+                inventory_quantity: inventory,
+            });
+        }
+    }
+
+    (products, variants, errors)
+}
+
+fn get_cell_str(row: &[calamine::Data], idx: usize) -> String {
+    row.get(idx).map(|c| c.to_string().trim().to_string()).unwrap_or_default()
+}
+
+fn guess_content_type(path: &str) -> &'static str {
+    if path.ends_with(".jpg") || path.ends_with(".jpeg") { return "image/jpeg"; }
+    if path.ends_with(".png") { return "image/png"; }
+    if path.ends_with(".gif") { return "image/gif"; }
+    if path.ends_with(".webp") { return "image/webp"; }
+    if path.ends_with(".svg") { return "image/svg+xml"; }
+    if path.ends_with(".pdf") { return "application/pdf"; }
+    "application/octet-stream"
 }

@@ -34,12 +34,12 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
         // Auth
         .route(ADMIN_AUTH, get(auth::get_session).delete(auth::logout))
         // Products
-        .route(ADMIN_PRODUCTS, get(products::list_products).post(products::create_product))
+        .route(ADMIN_PRODUCTS, get(products::list).post(products::create))
         .route(
             ADMIN_PRODUCTS_ID,
-            get(products::get_product)
-                .put(products::update_product)
-                .delete(products::delete_product),
+            get(products::get)
+                .put(products::update)
+                .delete(products::delete_one),
         )
         .route(
             ADMIN_PRODUCTS_ID_VARIANTS,
