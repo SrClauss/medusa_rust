@@ -1,0 +1,21 @@
+# Build artifacts
+/target/
+
+# Environment files with secrets — copy .env.example and fill in values
+.env
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploaded assets (keep dir structure, ignore contents)
+uploads/*
+!uploads/.gitkeep
+
+# SQLx offline query cache (commit if using SQLX_OFFLINE=true)
+# .sqlx/

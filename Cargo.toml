@@ -1,0 +1,86 @@
+[package]
+name = "medusa_rust"
+version = "0.1.0"
+edition = "2021"
+description = "Port do MedusaJS para Rust — Axum + SQLx + Moka + PostgreSQL"
+authors = ["MedusaRust Contributors"]
+license = "MIT"
+
+[[bin]]
+name = "medusa_rust"
+path = "src/main.rs"
+
+[dependencies]
+# ── Web framework ──────────────────────────────────────────────────────────────
+axum              = { version = "0.8", features = ["multipart"] }
+tower             = { version = "0.5", features = ["full"] }
+tower-http        = { version = "0.6", features = ["cors", "trace", "request-id"] }
+
+# ── Async runtime ──────────────────────────────────────────────────────────────
+tokio             = { version = "1",   features = ["full"] }
+futures           = "0.3"
+
+# ── Serialization ──────────────────────────────────────────────────────────────
+serde             = { version = "1",    features = ["derive"] }
+serde_json        = "1"
+
+# ── Database (SQLx + PostgreSQL) ───────────────────────────────────────────────
+sqlx = { version = "0.8", features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+    "chrono",
+    "json",
+    "migrate",
+] }
+
+# ── Cache ──────────────────────────────────────────────────────────────────────
+moka              = { version = "0.12", features = ["future"] }
+
+# ── Authentication ─────────────────────────────────────────────────────────────
+jsonwebtoken      = "9"
+argon2            = "0.5"
+rand              = "0.8"
+
+# ── Excel parsing ──────────────────────────────────────────────────────────────
+calamine          = { version = "0.24", features = ["dates"] }
+
+# ── Zip handling ───────────────────────────────────────────────────────────────
+zip               = "2"
+
+# ── Validation ─────────────────────────────────────────────────────────────────
+validator         = { version = "0.18", features = ["derive"] }
+
+# ── UUID / Time ────────────────────────────────────────────────────────────────
+uuid              = { version = "1", features = ["serde", "v4"] }
+chrono            = { version = "0.4", features = ["serde"] }
+
+# ── Slugification ──────────────────────────────────────────────────────────────
+slug              = "0.1"
+
+# ── Background jobs (apalis + PostgreSQL storage) ──────────────────────────────
+# Using apalis-postgres 1.0.0-rc.4 for persistent job queues.
+# Wire-up to replace the tokio::spawn fallback in api/mod.rs.
+apalis            = { version = "1.0.0-rc.4" }
+apalis-postgres   = { version = "1.0.0-rc.4" }
+
+# ── Utilities ──────────────────────────────────────────────────────────────────
+anyhow            = "1"
+thiserror         = "2"
+tracing           = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+async-trait       = "0.1"
+bytes             = "1"
+dotenvy           = "0.15"
+tempfile          = "3"
+mime              = "0.3"
+
+# ── Object storage (MinIO / AWS S3 — S3-compatible) ────────────────────────────
+aws-sdk-s3           = "1"
+aws-config           = "1"
+aws-credential-types = "1"
+
+[profile.release]
+lto           = true
+codegen-units = 1
+opt-level     = 3
