@@ -59,8 +59,10 @@ chrono            = { version = "0.4", features = ["serde"] }
 slug              = "0.1"
 
 # ── Background jobs (apalis + PostgreSQL storage) ──────────────────────────────
-apalis            = { version = "0.6", features = ["tokio-comp"] }
-apalis-sql        = { version = "0.6", features = ["postgres"] }
+# Using apalis-postgres 1.0.0-rc.4 for persistent job queues.
+# Wire-up to replace the tokio::spawn fallback in api/mod.rs.
+apalis            = { version = "1.0.0-rc.4" }
+apalis-postgres   = { version = "1.0.0-rc.4" }
 
 # ── Utilities ──────────────────────────────────────────────────────────────────
 anyhow            = "1"
