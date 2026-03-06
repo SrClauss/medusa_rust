@@ -57,11 +57,13 @@ async fn build_discount(state: &AppState, id: Uuid, r: &sqlx::postgres::PgRow) -
         "is_disabled": r.get::<bool, _>("is_disabled"),
         "starts_at": r.get::<chrono::DateTime<chrono::Utc>, _>("starts_at"),
         "ends_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("ends_at"),
+        "valid_duration": r.get::<Option<String>, _>("valid_duration"),
         "usage_limit": r.get::<Option<i32>, _>("usage_limit"),
         "usage_count": r.get::<i32, _>("usage_count"),
         "metadata": r.get::<Option<serde_json::Value>, _>("metadata"),
         "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
         "updated_at": r.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
+        "deleted_at": null,
         "rule": rule,
         "regions": regions,
     }))
@@ -72,7 +74,7 @@ pub async fn list(
     Query(p): Query<ListParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let rows = sqlx::query(
-        "SELECT id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, \
+        "SELECT id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, valid_duration, \
          usage_limit, usage_count, metadata, created_at, updated_at \
          FROM discounts WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT $1 OFFSET $2",
     )
@@ -95,7 +97,7 @@ pub async fn get(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let r = sqlx::query(
-        "SELECT id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, \
+        "SELECT id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, valid_duration, \
          usage_limit, usage_count, metadata, created_at, updated_at \
          FROM discounts WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -111,7 +113,7 @@ pub async fn get_by_code(
     Path(code): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let r = sqlx::query(
-        "SELECT id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, \
+        "SELECT id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, valid_duration, \
          usage_limit, usage_count, metadata, created_at, updated_at \
          FROM discounts WHERE code = $1 AND deleted_at IS NULL",
     )
@@ -156,9 +158,9 @@ pub async fn create(
 
     let r = sqlx::query(
         "INSERT INTO discounts (id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, \
-         usage_limit, metadata, created_at, updated_at) \
-         VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7,$8,NOW(),NOW()) \
-         RETURNING id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, \
+         valid_duration, usage_limit, metadata, created_at, updated_at) \
+         VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7,$8,$9,NOW(),NOW()) \
+         RETURNING id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, valid_duration, \
          usage_limit, usage_count, metadata, created_at, updated_at",
     )
     .bind(id)
@@ -167,6 +169,7 @@ pub async fn create(
     .bind(rule_id)
     .bind(payload.get("is_disabled").and_then(|v| v.as_bool()).unwrap_or(false))
     .bind(payload.get("ends_at").and_then(|v| v.as_str()).and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok()))
+    .bind(payload.get("valid_duration").and_then(|v| v.as_str()).map(|s| s.to_string()))
     .bind(payload.get("usage_limit").and_then(|v| v.as_i64()).map(|v| v as i32))
     .bind(payload.get("metadata").cloned())
     .fetch_one(&*state.db)
@@ -200,16 +203,18 @@ pub async fn update(
         "UPDATE discounts SET \
          is_disabled = COALESCE($2, is_disabled), \
          ends_at = COALESCE($3, ends_at), \
-         usage_limit = COALESCE($4, usage_limit), \
-         metadata = COALESCE($5, metadata), \
+         valid_duration = COALESCE($4, valid_duration), \
+         usage_limit = COALESCE($5, usage_limit), \
+         metadata = COALESCE($6, metadata), \
          updated_at = NOW() \
          WHERE id = $1 AND deleted_at IS NULL \
-         RETURNING id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, \
+         RETURNING id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, valid_duration, \
          usage_limit, usage_count, metadata, created_at, updated_at",
     )
     .bind(id)
     .bind(payload.get("is_disabled").and_then(|v| v.as_bool()))
     .bind(payload.get("ends_at").and_then(|v| v.as_str()).and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok()))
+    .bind(payload.get("valid_duration").and_then(|v| v.as_str()).map(|s| s.to_string()))
     .bind(payload.get("usage_limit").and_then(|v| v.as_i64()).map(|v| v as i32))
     .bind(payload.get("metadata").cloned())
     .fetch_optional(&*state.db)
@@ -241,7 +246,7 @@ pub async fn add_region(
     .execute(&*state.db)
     .await?;
     let r = sqlx::query(
-        "SELECT id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, \
+        "SELECT id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, valid_duration, \
          usage_limit, usage_count, metadata, created_at, updated_at \
          FROM discounts WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -262,7 +267,7 @@ pub async fn remove_region(
         .execute(&*state.db)
         .await?;
     let r = sqlx::query(
-        "SELECT id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, \
+        "SELECT id, code, is_dynamic, rule_id, is_disabled, starts_at, ends_at, valid_duration, \
          usage_limit, usage_count, metadata, created_at, updated_at \
          FROM discounts WHERE id = $1 AND deleted_at IS NULL",
     )

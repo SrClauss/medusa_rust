@@ -1,4 +1,5 @@
 //! Application entry point — composes AppState and starts the Axum server.
+#![recursion_limit = "256"]
 mod api;
 mod auth;
 mod core;
