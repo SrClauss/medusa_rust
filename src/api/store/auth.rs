@@ -30,8 +30,7 @@ pub async fn login(State(state): State<AppState>, Json(payload): Json<LoginPaylo
         "metadata":   row.get::<Option<serde_json::Value>, _>("metadata"),
         "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
         "updated_at": row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
-        "token": token,
-    }})))
+    }, "access_token": token })))
 }
 
 pub async fn get_session(State(state): State<AppState>, axum::Extension(auth): axum::Extension<crate::auth::jwt::AuthCustomer>) -> Result<Json<serde_json::Value>, AppError> {

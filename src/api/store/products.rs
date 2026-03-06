@@ -14,7 +14,7 @@ pub struct ListParams {
 fn d20() -> i64 { 20 }
 
 pub async fn list_products(State(state): State<AppState>, Query(p): Query<ListParams>) -> Result<Json<serde_json::Value>, AppError> {
-    let rows = sqlx::query("SELECT id, title, subtitle, description, handle, is_giftcard, status, thumbnail, collection_id, discountable, metadata, created_at, updated_at FROM products WHERE deleted_at IS NULL AND status = 'published' ORDER BY created_at DESC LIMIT $1 OFFSET $2")
+    let rows = sqlx::query("SELECT id, title, subtitle, description, handle, is_giftcard, status, thumbnail, collection_id, type_id, discountable, weight, length, height, width, hs_code, origin_country, mid_code, material, external_id, metadata, created_at, updated_at FROM products WHERE deleted_at IS NULL AND status = 'published' ORDER BY created_at DESC LIMIT $1 OFFSET $2")
         .bind(p.limit).bind(p.offset).fetch_all(&*state.db).await?;
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM products WHERE deleted_at IS NULL AND status = 'published'")
         .fetch_one(&*state.db).await?;
@@ -28,10 +28,10 @@ pub async fn list_products(State(state): State<AppState>, Query(p): Query<ListPa
 
 pub async fn get_product(State(state): State<AppState>, Path(id_or_handle): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
     let r = if let Ok(uid) = id_or_handle.parse::<Uuid>() {
-        sqlx::query("SELECT id, title, subtitle, description, handle, is_giftcard, status, thumbnail, collection_id, discountable, metadata, created_at, updated_at FROM products WHERE id = $1 AND deleted_at IS NULL")
+        sqlx::query("SELECT id, title, subtitle, description, handle, is_giftcard, status, thumbnail, collection_id, type_id, discountable, weight, length, height, width, hs_code, origin_country, mid_code, material, external_id, metadata, created_at, updated_at FROM products WHERE id = $1 AND deleted_at IS NULL")
             .bind(uid).fetch_optional(&*state.db).await?
     } else {
-        sqlx::query("SELECT id, title, subtitle, description, handle, is_giftcard, status, thumbnail, collection_id, discountable, metadata, created_at, updated_at FROM products WHERE handle = $1 AND deleted_at IS NULL")
+        sqlx::query("SELECT id, title, subtitle, description, handle, is_giftcard, status, thumbnail, collection_id, type_id, discountable, weight, length, height, width, hs_code, origin_country, mid_code, material, external_id, metadata, created_at, updated_at FROM products WHERE handle = $1 AND deleted_at IS NULL")
             .bind(&id_or_handle).fetch_optional(&*state.db).await?
     }.ok_or_else(|| AppError::NotFound("Product not found".into()))?;
     let id: Uuid = r.get("id");
@@ -48,18 +48,41 @@ async fn build_product_json(state: &AppState, id: Uuid, r: &sqlx::postgres::PgRo
             .bind(cid).fetch_optional(&*state.db).await?
             .map(|c| serde_json::json!({"id":c.get::<Uuid,_>("id"),"title":c.get::<String,_>("title"),"handle":c.get::<String,_>("handle"),"created_at":c.get::<chrono::DateTime<chrono::Utc>,_>("created_at"),"updated_at":c.get::<chrono::DateTime<chrono::Utc>,_>("updated_at")}))
     } else { None };
+    let type_id: Option<Uuid> = r.get("type_id");
+    let product_type = if let Some(tid) = type_id {
+        sqlx::query("SELECT id, value FROM product_types WHERE id = $1")
+            .bind(tid).fetch_optional(&*state.db).await?
+            .map(|t| serde_json::json!({"id":t.get::<Uuid,_>("id"),"value":t.get::<String,_>("value")}))
+    } else { None };
+    let tags = sqlx::query("SELECT pt.id, pt.value FROM product_tags pt JOIN product_tags_products ptp ON ptp.tag_id = pt.id WHERE ptp.product_id = $1 AND pt.deleted_at IS NULL")
+        .bind(id).fetch_all(&*state.db).await?
+        .into_iter().map(|t| serde_json::json!({"id":t.get::<Uuid,_>("id"),"value":t.get::<String,_>("value")})).collect::<Vec<_>>();
+    let categories = sqlx::query("SELECT pc.id, pc.name, pc.handle FROM product_categories pc JOIN product_category_products pcp ON pcp.category_id = pc.id WHERE pcp.product_id = $1")
+        .bind(id).fetch_all(&*state.db).await?
+        .into_iter().map(|c| serde_json::json!({"id":c.get::<Uuid,_>("id"),"name":c.get::<String,_>("name"),"handle":c.get::<String,_>("handle")})).collect::<Vec<_>>();
     Ok(serde_json::json!({
         "id":r.get::<Uuid,_>("id"),"title":r.get::<String,_>("title"),
         "subtitle":r.get::<Option<String>,_>("subtitle"),"description":r.get::<Option<String>,_>("description"),
         "handle":r.get::<String,_>("handle"),"is_giftcard":r.get::<bool,_>("is_giftcard"),
         "status":r.get::<String,_>("status"),"thumbnail":r.get::<Option<String>,_>("thumbnail"),
+        "weight":r.get::<Option<f64>,_>("weight"),
+        "length":r.get::<Option<f64>,_>("length"),
+        "height":r.get::<Option<f64>,_>("height"),
+        "width":r.get::<Option<f64>,_>("width"),
+        "hs_code":r.get::<Option<String>,_>("hs_code"),
+        "origin_country":r.get::<Option<String>,_>("origin_country"),
+        "mid_code":r.get::<Option<String>,_>("mid_code"),
+        "material":r.get::<Option<String>,_>("material"),
+        "external_id":r.get::<Option<String>,_>("external_id"),
         "images":images,"options":options,"variants":variants,
         "collection_id":col_id,"collection":collection,
-        "type_id":null,"type":null,"tags":[],"categories":[],
+        "type_id":type_id,"type":product_type,
+        "tags":tags,"categories":categories,
         "discountable":r.get::<bool,_>("discountable"),
         "metadata":r.get::<Option<serde_json::Value>,_>("metadata"),
         "created_at":r.get::<chrono::DateTime<chrono::Utc>,_>("created_at"),
         "updated_at":r.get::<chrono::DateTime<chrono::Utc>,_>("updated_at"),"deleted_at":null,
+        "profile_id":null,
     }))
 }
 

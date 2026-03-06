@@ -7,7 +7,7 @@ use crate::{error::AppError, state::AppState};
 // ─── Cart helpers ─────────────────────────────────────────────────────────────
 
 async fn fetch_cart(state: &AppState, cart_id: Uuid) -> Result<serde_json::Value, AppError> {
-    let c = sqlx::query("SELECT id, email, region_id, customer_id, billing_address_id, shipping_address_id, type, completed_at, payment_authorized_at, idempotency_key, context, sales_channel_id, metadata, created_at, updated_at FROM carts WHERE id = $1 AND deleted_at IS NULL")
+    let c = sqlx::query("SELECT id, email, region_id, customer_id, billing_address_id, shipping_address_id, cart_type, completed_at, payment_authorized_at, idempotency_key, context, sales_channel_id, metadata, created_at, updated_at FROM carts WHERE id = $1 AND deleted_at IS NULL")
         .bind(cart_id).fetch_optional(&*state.db).await?.ok_or_else(|| AppError::NotFound("Cart not found".into()))?;
     let region_id: Uuid = c.get("region_id");
     let region = sqlx::query("SELECT id, name, currency_code, tax_rate FROM regions WHERE id = $1").bind(region_id).fetch_optional(&*state.db).await?.map(|r| serde_json::json!({"id":r.get::<Uuid,_>("id"),"name":r.get::<String,_>("name"),"currency_code":r.get::<String,_>("currency_code"),"tax_rate":r.get::<f64,_>("tax_rate")}));
@@ -17,6 +17,21 @@ async fn fetch_cart(state: &AppState, cart_id: Uuid) -> Result<serde_json::Value
     let shipping_methods = sqlx::query("SELECT id, cart_id, shipping_option_id, price, data, created_at, updated_at FROM shipping_methods WHERE cart_id = $1")
         .bind(cart_id).fetch_all(&*state.db).await?
         .into_iter().map(|r| serde_json::json!({"id":r.get::<Uuid,_>("id"),"cart_id":r.get::<Uuid,_>("cart_id"),"shipping_option_id":r.get::<Uuid,_>("shipping_option_id"),"price":r.get::<i64,_>("price"),"data":r.get::<Option<serde_json::Value>,_>("data"),"created_at":r.get::<chrono::DateTime<chrono::Utc>,_>("created_at")})).collect::<Vec<_>>();
+    let payment_sessions = sqlx::query("SELECT id, cart_id, provider_id, is_selected, is_initiated, status, data, amount, created_at, updated_at FROM payment_sessions WHERE cart_id = $1")
+        .bind(cart_id).fetch_all(&*state.db).await?
+        .into_iter().map(|r| serde_json::json!({"id":r.get::<Uuid,_>("id"),"cart_id":r.get::<Uuid,_>("cart_id"),"provider_id":r.get::<String,_>("provider_id"),"is_selected":r.get::<bool,_>("is_selected"),"is_initiated":r.get::<bool,_>("is_initiated"),"status":r.get::<String,_>("status"),"data":r.get::<Option<serde_json::Value>,_>("data"),"amount":r.get::<i64,_>("amount"),"created_at":r.get::<chrono::DateTime<chrono::Utc>,_>("created_at"),"updated_at":r.get::<chrono::DateTime<chrono::Utc>,_>("updated_at")})).collect::<Vec<_>>();
+    let selected_payment_session = payment_sessions.iter().find(|s| s["is_selected"].as_bool().unwrap_or(false)).cloned();
+    // Resolve billing and shipping addresses
+    let billing_address = if let Some(aid) = c.get::<Option<Uuid>,_>("billing_address_id") {
+        sqlx::query("SELECT id, first_name, last_name, phone, company, address_1, address_2, city, country_code, province, postal_code FROM addresses WHERE id = $1")
+            .bind(aid).fetch_optional(&*state.db).await?
+            .map(|a| serde_json::json!({"id":a.get::<Uuid,_>("id"),"first_name":a.get::<Option<String>,_>("first_name"),"last_name":a.get::<Option<String>,_>("last_name"),"phone":a.get::<Option<String>,_>("phone"),"company":a.get::<Option<String>,_>("company"),"address_1":a.get::<Option<String>,_>("address_1"),"address_2":a.get::<Option<String>,_>("address_2"),"city":a.get::<Option<String>,_>("city"),"country_code":a.get::<Option<String>,_>("country_code"),"province":a.get::<Option<String>,_>("province"),"postal_code":a.get::<Option<String>,_>("postal_code")}))
+    } else { None };
+    let shipping_address = if let Some(aid) = c.get::<Option<Uuid>,_>("shipping_address_id") {
+        sqlx::query("SELECT id, first_name, last_name, phone, company, address_1, address_2, city, country_code, province, postal_code FROM addresses WHERE id = $1")
+            .bind(aid).fetch_optional(&*state.db).await?
+            .map(|a| serde_json::json!({"id":a.get::<Uuid,_>("id"),"first_name":a.get::<Option<String>,_>("first_name"),"last_name":a.get::<Option<String>,_>("last_name"),"phone":a.get::<Option<String>,_>("phone"),"company":a.get::<Option<String>,_>("company"),"address_1":a.get::<Option<String>,_>("address_1"),"address_2":a.get::<Option<String>,_>("address_2"),"city":a.get::<Option<String>,_>("city"),"country_code":a.get::<Option<String>,_>("country_code"),"province":a.get::<Option<String>,_>("province"),"postal_code":a.get::<Option<String>,_>("postal_code")}))
+    } else { None };
     let subtotal: i64 = items.iter().map(|i| i["subtotal"].as_i64().unwrap_or(0)).sum();
     let shipping_total: i64 = shipping_methods.iter().map(|s| s["price"].as_i64().unwrap_or(0)).sum();
     let tax_rate: f64 = region.as_ref().and_then(|r| r["tax_rate"].as_f64()).unwrap_or(0.0);
@@ -28,10 +43,10 @@ async fn fetch_cart(state: &AppState, cart_id: Uuid) -> Result<serde_json::Value
         "region_id":region_id,"region":region,
         "customer_id":c.get::<Option<Uuid>,_>("customer_id"),
         "billing_address_id":c.get::<Option<Uuid>,_>("billing_address_id"),
-        "billing_address":null,
+        "billing_address":billing_address,
         "shipping_address_id":c.get::<Option<Uuid>,_>("shipping_address_id"),
-        "shipping_address":null,
-        "type":c.get::<String,_>("type"),
+        "shipping_address":shipping_address,
+        "type":c.get::<String,_>("cart_type"),
         "completed_at":c.get::<Option<chrono::DateTime<chrono::Utc>>,_>("completed_at"),
         "payment_authorized_at":c.get::<Option<chrono::DateTime<chrono::Utc>>,_>("payment_authorized_at"),
         "idempotency_key":c.get::<Option<String>,_>("idempotency_key"),
@@ -42,9 +57,9 @@ async fn fetch_cart(state: &AppState, cart_id: Uuid) -> Result<serde_json::Value
         "updated_at":c.get::<chrono::DateTime<chrono::Utc>,_>("updated_at"),
         "items":items,"shipping_methods":shipping_methods,
         "discounts":[],"gift_cards":[],
-        "payment_session":null,"payment_sessions":[],"payment":null,
+        "payment_session":selected_payment_session,"payment_sessions":payment_sessions,"payment":null,
         "subtotal":subtotal,"tax_total":tax_total,
-        "shipping_total":shipping_total,"discount_total":0,"total":total,
+        "shipping_total":shipping_total,"discount_total":0,"gift_card_total":0,"total":total,
     }))
 }
 
@@ -59,7 +74,7 @@ pub async fn create(State(state): State<AppState>, Json(payload): Json<serde_jso
             .fetch_optional(&*state.db).await?
             .ok_or_else(|| AppError::BadRequest("region_id required (no default region found)".into()))?
     };
-    sqlx::query("INSERT INTO carts (id, region_id, type, created_at, updated_at) VALUES ($1,$2,'default',NOW(),NOW())")
+    sqlx::query("INSERT INTO carts (id, region_id, cart_type, created_at, updated_at) VALUES ($1,$2,'default',NOW(),NOW())")
         .bind(id).bind(region_id).execute(&*state.db).await?;
     // If items were provided at creation time add them
     if let Some(arr) = payload.get("items").and_then(|v| v.as_array()) {
