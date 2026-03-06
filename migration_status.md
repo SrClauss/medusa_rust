@@ -98,7 +98,7 @@
 | 23 | POST | /admin/collections/:id/products/batch | `admin::collections::add_products` | ✅ |
 | 24 | DELETE | /admin/collections/:id/products/batch | `admin::collections::remove_products` | ✅ |
 | 25 | GET | /admin/orders | `admin::orders::list` | ✅ |
-| 26 | GET | /admin/orders/:id | `admin::orders::get` | ✅ |
+| 26 | GET | /admin/orders/:id | `admin::orders::get` | ✅ (with line items + totals) |
 | 27 | POST | /admin/orders/:id/complete | `admin::orders::complete` | ✅ |
 | 28 | POST | /admin/orders/:id/cancel | `admin::orders::cancel` | ✅ |
 | 29 | POST | /admin/orders/:id/archive | `admin::orders::archive` | ✅ |
@@ -113,20 +113,20 @@
 | 38 | POST | /admin/customers | `admin::customers::create` | ✅ |
 | 39 | GET | /admin/customers/:id | `admin::customers::get` | ✅ |
 | 40 | POST | /admin/customers/:id | `admin::customers::update` | ✅ |
-| 41 | GET | /admin/discounts | `admin::discounts::list` | 🟡 |
-| 42 | POST | /admin/discounts | `admin::discounts::create` | 🟡 |
-| 43 | GET | /admin/discounts/:id | `admin::discounts::get` | 🟡 |
-| 44 | PUT | /admin/discounts/:id | `admin::discounts::update` | 🟡 |
-| 45 | DELETE | /admin/discounts/:id | `admin::discounts::delete` | 🟡 |
-| 46 | GET | /admin/regions | `admin::regions::list` | 🟡 |
-| 47 | POST | /admin/regions | `admin::regions::create` | 🟡 |
-| 48 | GET | /admin/regions/:id | `admin::regions::get` | 🟡 |
-| 49 | PUT | /admin/regions/:id | `admin::regions::update` | 🟡 |
-| 50 | DELETE | /admin/regions/:id | `admin::regions::delete` | 🟡 |
-| 51 | GET | /admin/shipping-options | `admin::shipping_options::list` | 🟡 |
-| 52 | POST | /admin/shipping-options | `admin::shipping_options::create` | 🟡 |
-| 53 | GET | /admin/users | `admin::users::list` | 🟡 |
-| 54 | POST | /admin/users | `admin::users::create` | 🟡 |
+| 41 | GET | /admin/discounts | `admin::discounts::list` | ✅ |
+| 42 | POST | /admin/discounts | `admin::discounts::create` | ✅ |
+| 43 | GET | /admin/discounts/:id | `admin::discounts::get` | ✅ |
+| 44 | PUT | /admin/discounts/:id | `admin::discounts::update` | ✅ |
+| 45 | DELETE | /admin/discounts/:id | `admin::discounts::delete` | ✅ |
+| 46 | GET | /admin/regions | `admin::regions::list` | ✅ |
+| 47 | POST | /admin/regions | `admin::regions::create` | ✅ |
+| 48 | GET | /admin/regions/:id | `admin::regions::get` | ✅ |
+| 49 | PUT | /admin/regions/:id | `admin::regions::update` | ✅ |
+| 50 | DELETE | /admin/regions/:id | `admin::regions::delete` | ✅ |
+| 51 | GET | /admin/shipping-options | `admin::shipping_options::list` | ✅ |
+| 52 | POST | /admin/shipping-options | `admin::shipping_options::create` | ✅ |
+| 53 | GET | /admin/users | `admin::users::list` | ✅ |
+| 54 | POST | /admin/users | `admin::users::create` | ✅ |
 | 55 | POST | /admin/uploads | `admin::uploads::upload` | ✅ (S3/MinIO) |
 | 56 | DELETE | /admin/uploads | `admin::uploads::delete_files` | ✅ (S3/MinIO) |
 | 57 | GET | /admin/gift-cards | `admin::gift_cards::list` | 🟡 |
@@ -139,7 +139,7 @@
 | 64 | POST | /admin/batch-jobs | `admin::batch_jobs::create` | 🟡 |
 | 65 | GET | /admin/inventory-items | `admin::inventory::list` | 🟡 |
 | 66 | GET | /admin/price-lists | `admin::price_lists::list` | 🟡 |
-| 67 | GET | /admin/tax-rates | `admin::tax_rates::list` | 🟡 |
+| 67 | GET | /admin/tax-rates | `admin::tax_rates::list` | ✅ |
 | 68 | GET | /admin/product-categories | `admin::categories::list` | 🟡 |
 
 ---
@@ -171,11 +171,11 @@
 
 - [ ] Full discount calculation in cart (apply rule, compute discount_total)
 - [ ] Real payment provider integration (Stripe, PayPal)
-- [ ] Order line-item totals loaded from DB in order responses
 - [ ] Swap / claim / return full business logic
 - [ ] Presigned URL endpoint for direct browser upload to MinIO
 - [ ] Password-reset email sending (token generation done, email not sent)
 - [ ] Fulfillment provider plugin system
-- [ ] Tax-rate admin CRUD (list is stubbed)
-- [ ] Admin region / shipping-option full CRUD
+- [ ] Admin region shipping-option full CRUD (GET/:id, PUT/:id, DELETE/:id)
+- [ ] Admin users GET/:id, PUT/:id, DELETE/:id (routes wired but CRUD implemented)
 - [ ] Inventory reservation on cart completion
+- [ ] Admin returns/swaps/draft-orders/gift-cards/batch-jobs/price-lists/inventory full business logic
