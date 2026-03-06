@@ -138,7 +138,7 @@ pub async fn create(State(state): State<AppState>, Json(payload): Json<serde_jso
         for img in images {
             if let Some(url) = img.as_str() {
                 let iid = Uuid::new_v4();
-                sqlx::query("INSERT INTO product_images (id, url, created_at, updated_at) VALUES ($1,$2,NOW(),NOW()) ON CONFLICT DO NOTHING").bind(iid).bind(url).execute(&*state.db).await?;
+                sqlx::query("INSERT INTO product_images (id, url, created_at, updated_at) VALUES ($1,$2,NOW(),NOW())").bind(iid).bind(url).execute(&*state.db).await?;
                 sqlx::query("INSERT INTO product_images_products (product_id, image_id) VALUES ($1,$2) ON CONFLICT DO NOTHING").bind(id).bind(iid).execute(&*state.db).await?;
             }
         }
@@ -266,7 +266,7 @@ pub async fn update(State(state): State<AppState>, Path(id): Path<Uuid>, Json(pa
         for img in images {
             if let Some(url) = img.as_str() {
                 let iid = Uuid::new_v4();
-                sqlx::query("INSERT INTO product_images (id, url, created_at, updated_at) VALUES ($1,$2,NOW(),NOW()) ON CONFLICT DO NOTHING").bind(iid).bind(url).execute(&*state.db).await?;
+                sqlx::query("INSERT INTO product_images (id, url, created_at, updated_at) VALUES ($1,$2,NOW(),NOW())").bind(iid).bind(url).execute(&*state.db).await?;
                 sqlx::query("INSERT INTO product_images_products (product_id, image_id) VALUES ($1,$2) ON CONFLICT DO NOTHING").bind(id).bind(iid).execute(&*state.db).await?;
             }
         }

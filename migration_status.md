@@ -1,8 +1,18 @@
 # MedusaRust — Route Implementation Status
 
-> Generated: 2026-03-05  
+> Generated: 2026-03-06  
 > Backend: Axum + SQLx (PostgreSQL) + Moka cache  
 > Object storage: MinIO / AWS S3 via `aws-sdk-s3`
+>
+> **2026-03-06 Alignment pass**: compared every endpoint against Medusa JS v1 source and fixed:
+> - Critical bug: cart column `type` → `cart_type` (DB mismatch, caused runtime errors)
+> - Store auth login: `token` moved to top-level `access_token` (was nested inside `customer`)
+> - Products (admin + store): added `weight`, `length`, `height`, `width`, `hs_code`, `origin_country`, `mid_code`, `material`, `type_id`, `type` object, `tags`, `categories`, `external_id`, `profile_id`
+> - Products create/update: handle `images` (URL strings → stored in `product_images`), `type` object, `tags` array, all physical dimensions
+> - Variants create/update/get/list: full field support (`barcode`, `ean`, `upc`, `allow_backorder`, `manage_inventory`, physical dimensions, `prices` with `region_id`, `option_values`)
+> - Orders (admin + store): added `object: "order"`, `shipping_address`, `billing_address`, `region`, `customer` (admin only), `canceled_at`, `returns`, `claims`, `refunds`, `swaps`, `discounts`, `gift_cards`, totals (`gift_card_total`, `gift_card_tax_total`, `refunded_total`, `paid_total`, `refundable_amount`)
+> - Discounts: added `valid_duration`, `deleted_at` fields; updated all SQL queries and create/update handlers
+> - Cart: `billing_address` and `shipping_address` now resolved from DB; `payment_sessions` and `payment_session` (selected) now populated; added `gift_card_total`
 
 ---
 
@@ -19,17 +29,17 @@
 
 | # | Method | Path | Handler | Status |
 |---|--------|------|---------|--------|
-| 1 | POST | /store/auth | `store::auth::login` | ✅ |
+| 1 | POST | /store/auth | `store::auth::login` | ✅ returns `{ customer, access_token }` |
 | 2 | GET | /store/auth | `store::auth::get_session` | ✅ |
 | 3 | DELETE | /store/auth | `store::auth::logout` | ✅ |
-| 4 | GET | /store/products | `store::products::list_products` | ✅ |
-| 5 | GET | /store/products/:id | `store::products::get_product` | ✅ |
+| 4 | GET | /store/products | `store::products::list_products` | ✅ full fields incl. type, tags, categories, dimensions |
+| 5 | GET | /store/products/:id | `store::products::get_product` | ✅ full fields incl. type, tags, categories, dimensions |
 | 6 | GET | /store/collections | `store::collections::list` | ✅ |
 | 7 | GET | /store/collections/:id | `store::collections::get` | ✅ |
 | 8 | GET | /store/product-categories | `store::categories::list` | ✅ |
 | 9 | GET | /store/product-categories/:id | `store::categories::get` | ✅ |
-| 10 | POST | /store/carts | `store::carts::create` | ✅ |
-| 11 | GET | /store/carts/:id | `store::carts::get` | ✅ |
+| 10 | POST | /store/carts | `store::carts::create` | ✅ uses `cart_type` column |
+| 11 | GET | /store/carts/:id | `store::carts::get` | ✅ resolves billing/shipping addresses, payment_sessions |
 | 12 | POST | /store/carts/:id | `store::carts::update` | ✅ |
 | 13 | POST | /store/carts/:id/line-items | `store::carts::add_line_item` | ✅ |
 | 14 | POST | /store/carts/:id/line-items/:line_id | `store::carts::update_line_item` | ✅ |
@@ -49,7 +59,7 @@
 | 28 | POST | /store/customers/me | `store::customers::update_me` | ✅ |
 | 29 | POST | /store/customers/password-token | `store::customers::request_password_reset` | 🟡 |
 | 30 | POST | /store/customers/password-reset | `store::customers::reset_password` | ✅ |
-| 31 | GET | /store/customers/me/orders | `store::customers::list_orders` | ✅ |
+| 31 | GET | /store/customers/me/orders | `store::customers::list_orders` | ✅ returns full order structure |
 | 32 | GET | /store/customers/me/addresses | `store::customers::list_addresses` | ✅ |
 | 33 | POST | /store/customers/me/addresses | `store::customers::add_address` | ✅ |
 | 34 | GET | /store/customers/me/addresses/:address_id | `store::customers::get_address` | ✅ |
@@ -57,8 +67,8 @@
 | 36 | DELETE | /store/customers/me/addresses/:address_id | `store::customers::delete_address` | ✅ |
 | 37 | GET | /store/customers/me/payment-methods | `store::customers::list_payment_methods` | 🟡 |
 | 38 | POST | /store/customers/me/payment-methods | `store::customers::add_payment_method` | 🟡 |
-| 39 | GET | /store/orders/:id | `store::orders::get_order` | ✅ |
-| 40 | GET | /store/orders | `store::orders::get_order_by_params` | ✅ |
+| 39 | GET | /store/orders/:id | `store::orders::get_order` | ✅ with addresses, region, totals |
+| 40 | GET | /store/orders | `store::orders::get_order_by_params` | ✅ with addresses, region, totals |
 | 41 | GET | /store/regions | `store::regions::list` | ✅ |
 | 42 | GET | /store/regions/:id | `store::regions::get` | ✅ |
 | 43 | GET | /store/shipping-options | `store::shipping_options::list` | ✅ |
@@ -76,15 +86,15 @@
 | 1 | POST | /admin/auth | `admin::auth::login` | ✅ |
 | 2 | GET | /admin/auth | `admin::auth::get_session` | ✅ |
 | 3 | DELETE | /admin/auth | `admin::auth::logout` | ✅ |
-| 4 | GET | /admin/products | `admin::products::list` | ✅ |
-| 5 | POST | /admin/products | `admin::products::create` | ✅ |
-| 6 | GET | /admin/products/:id | `admin::products::get` | ✅ |
-| 7 | PUT | /admin/products/:id | `admin::products::update` | ✅ |
+| 4 | GET | /admin/products | `admin::products::list` | ✅ all fields incl. type, tags, categories, dimensions |
+| 5 | POST | /admin/products | `admin::products::create` | ✅ handles images, type, tags, dimensions, variant prices/options |
+| 6 | GET | /admin/products/:id | `admin::products::get` | ✅ all fields incl. type, tags, categories |
+| 7 | PUT | /admin/products/:id | `admin::products::update` | ✅ handles images, type, tags, dimensions |
 | 8 | DELETE | /admin/products/:id | `admin::products::delete_one` | ✅ |
-| 9 | GET | /admin/products/:id/variants | `admin::products::list_variants` | ✅ |
-| 10 | POST | /admin/products/:id/variants | `admin::products::create_variant` | ✅ |
-| 11 | GET | /admin/products/:id/variants/:variant_id | `admin::products::get_variant` | ✅ |
-| 12 | PUT | /admin/products/:id/variants/:variant_id | `admin::products::update_variant` | ✅ |
+| 9 | GET | /admin/products/:id/variants | `admin::products::list_variants` | ✅ with prices and option values |
+| 10 | POST | /admin/products/:id/variants | `admin::products::create_variant` | ✅ full fields + prices |
+| 11 | GET | /admin/products/:id/variants/:variant_id | `admin::products::get_variant` | ✅ with prices and option values |
+| 12 | PUT | /admin/products/:id/variants/:variant_id | `admin::products::update_variant` | ✅ full fields + prices |
 | 13 | DELETE | /admin/products/:id/variants/:variant_id | `admin::products::delete_variant` | ✅ |
 | 14 | GET | /admin/products/:id/options | `admin::products::list_options` | ✅ |
 | 15 | POST | /admin/products/:id/options | `admin::products::create_option` | ✅ |
@@ -97,8 +107,8 @@
 | 22 | DELETE | /admin/collections/:id | `admin::collections::delete_one` | ✅ |
 | 23 | POST | /admin/collections/:id/products/batch | `admin::collections::add_products` | ✅ |
 | 24 | DELETE | /admin/collections/:id/products/batch | `admin::collections::remove_products` | ✅ |
-| 25 | GET | /admin/orders | `admin::orders::list` | ✅ |
-| 26 | GET | /admin/orders/:id | `admin::orders::get` | ✅ (with line items + totals) |
+| 25 | GET | /admin/orders | `admin::orders::list` | ✅ with addresses, region, customer, totals |
+| 26 | GET | /admin/orders/:id | `admin::orders::get` | ✅ with addresses, region, customer, payments, fulfillments, totals |
 | 27 | POST | /admin/orders/:id/complete | `admin::orders::complete` | ✅ |
 | 28 | POST | /admin/orders/:id/cancel | `admin::orders::cancel` | ✅ |
 | 29 | POST | /admin/orders/:id/archive | `admin::orders::archive` | ✅ |
@@ -113,10 +123,10 @@
 | 38 | POST | /admin/customers | `admin::customers::create` | ✅ |
 | 39 | GET | /admin/customers/:id | `admin::customers::get` | ✅ |
 | 40 | POST | /admin/customers/:id | `admin::customers::update` | ✅ |
-| 41 | GET | /admin/discounts | `admin::discounts::list` | ✅ |
-| 42 | POST | /admin/discounts | `admin::discounts::create` | ✅ |
-| 43 | GET | /admin/discounts/:id | `admin::discounts::get` | ✅ |
-| 44 | PUT | /admin/discounts/:id | `admin::discounts::update` | ✅ |
+| 41 | GET | /admin/discounts | `admin::discounts::list` | ✅ incl. valid_duration, regions, rule |
+| 42 | POST | /admin/discounts | `admin::discounts::create` | ✅ incl. valid_duration, regions |
+| 43 | GET | /admin/discounts/:id | `admin::discounts::get` | ✅ incl. valid_duration, regions, rule |
+| 44 | PUT | /admin/discounts/:id | `admin::discounts::update` | ✅ incl. valid_duration |
 | 45 | DELETE | /admin/discounts/:id | `admin::discounts::delete` | ✅ |
 | 46 | GET | /admin/regions | `admin::regions::list` | ✅ |
 | 47 | POST | /admin/regions | `admin::regions::create` | ✅ |
@@ -167,7 +177,7 @@
 
 ---
 
-## Remaining TODO (Next Prompt)
+## Remaining TODO
 
 - [ ] Full discount calculation in cart (apply rule, compute discount_total)
 - [ ] Real payment provider integration (Stripe, PayPal)
@@ -175,7 +185,10 @@
 - [ ] Presigned URL endpoint for direct browser upload to MinIO
 - [ ] Password-reset email sending (token generation done, email not sent)
 - [ ] Fulfillment provider plugin system
-- [ ] Admin region shipping-option full CRUD (GET/:id, PUT/:id, DELETE/:id)
-- [ ] Admin users GET/:id, PUT/:id, DELETE/:id (routes wired but CRUD implemented)
+- [ ] Admin product-categories full CRUD (currently stubbed)
+- [ ] Admin gift-cards, returns, draft-orders, batch-jobs, price-lists, inventory full business logic
+- [ ] Cart discount application: compute discount_total based on discount rule and type
+- [ ] Admin orders `refunds`, `returns`, `swaps`, `claims` sub-resources (currently return empty arrays)
 - [ ] Inventory reservation on cart completion
-- [ ] Admin returns/swaps/draft-orders/gift-cards/batch-jobs/price-lists/inventory full business logic
+- [ ] Store swaps full business logic (currently stubbed)
+- [ ] Store `POST /store/returns` full business logic

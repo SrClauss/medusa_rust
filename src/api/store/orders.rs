@@ -84,18 +84,18 @@ async fn build_order(state: &AppState, id: Uuid, r: &sqlx::postgres::PgRow) -> R
     // Resolve addresses
     let shipping_address = if let Some(aid) = r.get::<Option<Uuid>, _>("shipping_address_id") {
         sqlx::query("SELECT id, first_name, last_name, phone, company, address_1, address_2, city, country_code, province, postal_code FROM addresses WHERE id = $1")
-            .bind(aid).fetch_optional(&*state.db).await.unwrap_or(None)
+            .bind(aid).fetch_optional(&*state.db).await.ok().flatten()
             .map(|a| serde_json::json!({"id":a.get::<Uuid,_>("id"),"first_name":a.get::<Option<String>,_>("first_name"),"last_name":a.get::<Option<String>,_>("last_name"),"phone":a.get::<Option<String>,_>("phone"),"company":a.get::<Option<String>,_>("company"),"address_1":a.get::<Option<String>,_>("address_1"),"address_2":a.get::<Option<String>,_>("address_2"),"city":a.get::<Option<String>,_>("city"),"country_code":a.get::<Option<String>,_>("country_code"),"province":a.get::<Option<String>,_>("province"),"postal_code":a.get::<Option<String>,_>("postal_code")}))
     } else { None };
     let billing_address = if let Some(aid) = r.get::<Option<Uuid>, _>("billing_address_id") {
         sqlx::query("SELECT id, first_name, last_name, phone, company, address_1, address_2, city, country_code, province, postal_code FROM addresses WHERE id = $1")
-            .bind(aid).fetch_optional(&*state.db).await.unwrap_or(None)
+            .bind(aid).fetch_optional(&*state.db).await.ok().flatten()
             .map(|a| serde_json::json!({"id":a.get::<Uuid,_>("id"),"first_name":a.get::<Option<String>,_>("first_name"),"last_name":a.get::<Option<String>,_>("last_name"),"phone":a.get::<Option<String>,_>("phone"),"company":a.get::<Option<String>,_>("company"),"address_1":a.get::<Option<String>,_>("address_1"),"address_2":a.get::<Option<String>,_>("address_2"),"city":a.get::<Option<String>,_>("city"),"country_code":a.get::<Option<String>,_>("country_code"),"province":a.get::<Option<String>,_>("province"),"postal_code":a.get::<Option<String>,_>("postal_code")}))
     } else { None };
 
     let region_id: Uuid = r.get("region_id");
     let region = sqlx::query("SELECT id, name, currency_code, tax_rate FROM regions WHERE id = $1")
-        .bind(region_id).fetch_optional(&*state.db).await.unwrap_or(None)
+        .bind(region_id).fetch_optional(&*state.db).await.ok().flatten()
         .map(|rr| serde_json::json!({"id":rr.get::<Uuid,_>("id"),"name":rr.get::<String,_>("name"),"currency_code":rr.get::<String,_>("currency_code"),"tax_rate":rr.get::<f64,_>("tax_rate")}));
 
     let total = subtotal + tax_total + shipping_total;
