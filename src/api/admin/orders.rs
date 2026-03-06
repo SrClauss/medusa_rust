@@ -8,22 +8,154 @@ use crate::{error::AppError, state::AppState};
 pub struct ListParams { #[serde(default="d20")] pub limit: i64, #[serde(default)] pub offset: i64 }
 fn d20() -> i64 { 20 }
 
-fn order_json(r: &sqlx::postgres::PgRow) -> serde_json::Value {
-    serde_json::json!({"id":r.get::<Uuid,_>("id"),"status":r.get::<String,_>("status"),"fulfillment_status":r.get::<String,_>("fulfillment_status"),"payment_status":r.get::<String,_>("payment_status"),"display_id":r.get::<i32,_>("display_id"),"cart_id":r.get::<Option<Uuid>,_>("cart_id"),"customer_id":r.get::<Uuid,_>("customer_id"),"email":r.get::<String,_>("email"),"region_id":r.get::<Uuid,_>("region_id"),"currency_code":r.get::<String,_>("currency_code"),"metadata":r.get::<Option<serde_json::Value>,_>("metadata"),"created_at":r.get::<chrono::DateTime<chrono::Utc>,_>("created_at"),"updated_at":r.get::<chrono::DateTime<chrono::Utc>,_>("updated_at"),"items":[],"shipping_methods":[],"payments":[],"fulfillments":[],"subtotal":0,"tax_total":0,"shipping_total":0,"discount_total":0,"total":0})
+async fn build_order(state: &AppState, id: Uuid, r: &sqlx::postgres::PgRow) -> Result<serde_json::Value, AppError> {
+    let items_rows = sqlx::query(
+        "SELECT id, title, description, thumbnail, unit_price, quantity, \
+         fulfilled_quantity, returned_quantity, shipped_quantity, variant_id, metadata, created_at, updated_at \
+         FROM line_items WHERE order_id = $1",
+    )
+    .bind(id)
+    .fetch_all(&*state.db)
+    .await?;
+
+    let mut subtotal: i64 = 0;
+    let items = items_rows
+        .iter()
+        .map(|i| {
+            let unit_price = i.get::<i64, _>("unit_price");
+            let quantity = i.get::<i32, _>("quantity");
+            subtotal += unit_price * (quantity as i64);
+            serde_json::json!({
+                "id": i.get::<Uuid, _>("id"),
+                "title": i.get::<String, _>("title"),
+                "description": i.get::<Option<String>, _>("description"),
+                "thumbnail": i.get::<Option<String>, _>("thumbnail"),
+                "unit_price": unit_price,
+                "quantity": quantity,
+                "fulfilled_quantity": i.get::<Option<i32>, _>("fulfilled_quantity"),
+                "returned_quantity": i.get::<Option<i32>, _>("returned_quantity"),
+                "shipped_quantity": i.get::<Option<i32>, _>("shipped_quantity"),
+                "variant_id": i.get::<Option<Uuid>, _>("variant_id"),
+                "subtotal": unit_price * (quantity as i64),
+                "metadata": i.get::<Option<serde_json::Value>, _>("metadata"),
+                "created_at": i.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+                "updated_at": i.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let tax_rate = r.get::<Option<f64>, _>("tax_rate").unwrap_or(0.0);
+    let tax_total = ((subtotal as f64) * tax_rate / 100.0) as i64;
+
+    let shipping_methods_rows = sqlx::query(
+        "SELECT sm.id, sm.price, so.name as shipping_option_name FROM shipping_methods sm \
+         LEFT JOIN shipping_options so ON so.id = sm.shipping_option_id \
+         WHERE sm.order_id = $1",
+    )
+    .bind(id)
+    .fetch_all(&*state.db)
+    .await
+    .unwrap_or_default();
+
+    let mut shipping_total: i64 = 0;
+    let shipping_methods = shipping_methods_rows
+        .iter()
+        .map(|sm| {
+            let price = sm.get::<i64, _>("price");
+            shipping_total += price;
+            serde_json::json!({
+                "id": sm.get::<Uuid, _>("id"),
+                "price": price,
+                "shipping_option": { "name": sm.get::<Option<String>, _>("shipping_option_name") },
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let fulfillments = sqlx::query(
+        "SELECT id, provider_id, tracking_numbers, shipped_at, canceled_at, created_at, updated_at \
+         FROM fulfillments WHERE order_id = $1",
+    )
+    .bind(id)
+    .fetch_all(&*state.db)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .map(|f| serde_json::json!({
+        "id": f.get::<Uuid, _>("id"),
+        "provider_id": f.get::<String, _>("provider_id"),
+        "tracking_numbers": f.get::<Option<serde_json::Value>, _>("tracking_numbers"),
+        "shipped_at": f.get::<Option<chrono::DateTime<chrono::Utc>>, _>("shipped_at"),
+        "canceled_at": f.get::<Option<chrono::DateTime<chrono::Utc>>, _>("canceled_at"),
+        "created_at": f.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+        "updated_at": f.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
+    }))
+    .collect::<Vec<_>>();
+
+    let payments = sqlx::query(
+        "SELECT id, amount, currency_code, provider_id, captured_at, cancelled_at, created_at, updated_at \
+         FROM payments WHERE order_id = $1",
+    )
+    .bind(id)
+    .fetch_all(&*state.db)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .map(|p| serde_json::json!({
+        "id": p.get::<Uuid, _>("id"),
+        "amount": p.get::<i64, _>("amount"),
+        "currency_code": p.get::<String, _>("currency_code"),
+        "provider_id": p.get::<String, _>("provider_id"),
+        "captured_at": p.get::<Option<chrono::DateTime<chrono::Utc>>, _>("captured_at"),
+        "cancelled_at": p.get::<Option<chrono::DateTime<chrono::Utc>>, _>("cancelled_at"),
+        "created_at": p.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+        "updated_at": p.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
+    }))
+    .collect::<Vec<_>>();
+
+    let total = subtotal + tax_total + shipping_total;
+
+    Ok(serde_json::json!({
+        "id": r.get::<Uuid, _>("id"),
+        "status": r.get::<String, _>("status"),
+        "fulfillment_status": r.get::<String, _>("fulfillment_status"),
+        "payment_status": r.get::<String, _>("payment_status"),
+        "display_id": r.get::<i32, _>("display_id"),
+        "cart_id": r.get::<Option<Uuid>, _>("cart_id"),
+        "customer_id": r.get::<Uuid, _>("customer_id"),
+        "email": r.get::<String, _>("email"),
+        "region_id": r.get::<Uuid, _>("region_id"),
+        "currency_code": r.get::<String, _>("currency_code"),
+        "tax_rate": tax_rate,
+        "metadata": r.get::<Option<serde_json::Value>, _>("metadata"),
+        "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+        "updated_at": r.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
+        "items": items,
+        "shipping_methods": shipping_methods,
+        "payments": payments,
+        "fulfillments": fulfillments,
+        "subtotal": subtotal,
+        "tax_total": tax_total,
+        "shipping_total": shipping_total,
+        "discount_total": 0,
+        "total": total,
+    }))
 }
 
 pub async fn list(State(state): State<AppState>, Query(p): Query<ListParams>) -> Result<Json<serde_json::Value>, AppError> {
-    let rows = sqlx::query("SELECT id, status, fulfillment_status, payment_status, display_id, cart_id, customer_id, email, region_id, currency_code, metadata, created_at, updated_at FROM orders ORDER BY created_at DESC LIMIT $1 OFFSET $2")
+    let rows = sqlx::query("SELECT id, status, fulfillment_status, payment_status, display_id, cart_id, customer_id, email, region_id, currency_code, tax_rate, metadata, created_at, updated_at FROM orders ORDER BY created_at DESC LIMIT $1 OFFSET $2")
         .bind(p.limit).bind(p.offset).fetch_all(&*state.db).await?;
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM orders").fetch_one(&*state.db).await?;
-    let orders: Vec<_> = rows.iter().map(|r| order_json(r)).collect();
+    let mut orders = Vec::new();
+    for r in &rows {
+        orders.push(build_order(&state, r.get("id"), r).await?);
+    }
     Ok(Json(serde_json::json!({"orders":orders,"count":count,"offset":p.offset,"limit":p.limit})))
 }
 
 pub async fn get(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Json<serde_json::Value>, AppError> {
-    let r = sqlx::query("SELECT id, status, fulfillment_status, payment_status, display_id, cart_id, customer_id, email, region_id, currency_code, metadata, created_at, updated_at FROM orders WHERE id = $1")
+    let r = sqlx::query("SELECT id, status, fulfillment_status, payment_status, display_id, cart_id, customer_id, email, region_id, currency_code, tax_rate, metadata, created_at, updated_at FROM orders WHERE id = $1")
         .bind(id).fetch_optional(&*state.db).await?.ok_or_else(|| AppError::NotFound("Order not found".into()))?;
-    Ok(Json(serde_json::json!({"order":order_json(&r)})))
+    Ok(Json(serde_json::json!({"order": build_order(&state, id, &r).await?})))
 }
 
 pub async fn create(_: State<AppState>, _: Json<serde_json::Value>) -> Result<(StatusCode, Json<serde_json::Value>), AppError> { Ok((StatusCode::CREATED, Json(serde_json::json!({"order":{}})))) }
