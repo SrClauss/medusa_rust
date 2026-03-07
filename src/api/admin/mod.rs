@@ -66,6 +66,7 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
         .route(ADMIN_AUTH, get(auth::get_session).delete(auth::logout))
         // Products
         .route(ADMIN_PRODUCTS, get(products::list).post(products::create))
+        .route(ADMIN_PRODUCT_VARIANTS, get(products::list_all_variants))
         .route(
             ADMIN_PRODUCTS_ID,
             get(products::get)
@@ -78,7 +79,7 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
         )
         .route(
             ADMIN_PRODUCTS_ID_VARIANTS_ID,
-            put(products::update_variant).delete(products::delete_variant),
+            get(products::get_variant).put(products::update_variant).delete(products::delete_variant),
         )
         .route(
             ADMIN_PRODUCTS_ID_OPTIONS,
@@ -345,8 +346,18 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
             ADMIN_PROMOTIONS_ID_RULES,
             post(promotions::add_rules).delete(promotions::remove_rules),
         )
+        .route(
+            ADMIN_PROMOTIONS_ID_BUY_RULES,
+            get(promotions::list_buy_rules),
+        )
+        .route(
+            ADMIN_PROMOTIONS_ID_TARGET_RULES,
+            get(promotions::list_target_rules),
+        )
         .route(ADMIN_PROMOTIONS_ID_BUY_RULES_BATCH, post(promotions::batch_buy_rules))
         .route(ADMIN_PROMOTIONS_ID_TARGET_RULES_BATCH, post(promotions::batch_target_rules))
+        .route(ADMIN_PROMOTIONS_RULE_ATTRIBUTE_OPTIONS, get(promotions::list_rule_attribute_options))
+        .route(ADMIN_PROMOTIONS_RULE_VALUE_OPTIONS, get(promotions::list_rule_value_options))
         // Price Preferences
         .route(ADMIN_PRICE_PREFERENCES, get(price_preferences::list).post(price_preferences::create))
         .route(

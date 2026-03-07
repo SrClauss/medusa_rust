@@ -295,6 +295,69 @@ pub async fn delete_one(State(state): State<AppState>, Path(id): Path<Uuid>) -> 
 }
 
 // ─── Variants ─────────────────────────────────────────────────────────────────
+
+/// GET /admin/product-variants — list all variants across all products.
+pub async fn list_all_variants(
+    State(state): State<AppState>,
+    Query(p): Query<ListParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let rows = sqlx::query(
+        "SELECT id, title, sku, barcode, ean, upc, inventory_quantity, allow_backorder, \
+         manage_inventory, product_id, variant_rank, hs_code, origin_country, mid_code, \
+         material, weight, length, height, width, metadata, created_at, updated_at \
+         FROM product_variants WHERE deleted_at IS NULL \
+         ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+    )
+    .bind(p.limit)
+    .bind(p.offset)
+    .fetch_all(&*state.db)
+    .await?;
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM product_variants WHERE deleted_at IS NULL")
+            .fetch_one(&*state.db)
+            .await?;
+    let mut variants = Vec::new();
+    for v in &rows {
+        let vid: Uuid = v.get("id");
+        let prices = sqlx::query(
+            "SELECT id, currency_code, amount, variant_id, region_id, created_at, updated_at \
+             FROM money_amounts WHERE variant_id = $1 AND deleted_at IS NULL AND price_list_id IS NULL",
+        )
+        .bind(vid)
+        .fetch_all(&*state.db)
+        .await?
+        .into_iter()
+        .map(|p| {
+            serde_json::json!({
+                "id": p.get::<Uuid, _>("id"),
+                "currency_code": p.get::<String, _>("currency_code"),
+                "amount": p.get::<i64, _>("amount"),
+                "variant_id": p.get::<Uuid, _>("variant_id"),
+                "region_id": p.get::<Option<Uuid>, _>("region_id"),
+            })
+        })
+        .collect::<Vec<_>>();
+        variants.push(serde_json::json!({
+            "id": vid,
+            "title": v.get::<String, _>("title"),
+            "product_id": v.get::<Uuid, _>("product_id"),
+            "sku": v.get::<Option<String>, _>("sku"),
+            "barcode": v.get::<Option<String>, _>("barcode"),
+            "ean": v.get::<Option<String>, _>("ean"),
+            "upc": v.get::<Option<String>, _>("upc"),
+            "inventory_quantity": v.get::<i32, _>("inventory_quantity"),
+            "allow_backorder": v.get::<bool, _>("allow_backorder"),
+            "manage_inventory": v.get::<bool, _>("manage_inventory"),
+            "variant_rank": v.get::<Option<i32>, _>("variant_rank"),
+            "metadata": v.get::<Option<serde_json::Value>, _>("metadata"),
+            "created_at": v.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+            "updated_at": v.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
+            "prices": prices,
+        }));
+    }
+    Ok(Json(serde_json::json!({"variants": variants, "count": count, "offset": p.offset, "limit": p.limit})))
+}
+
 pub async fn list_variants(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Json<serde_json::Value>, AppError> {
     let rows = sqlx::query("SELECT id, title, sku, barcode, ean, upc, inventory_quantity, allow_backorder, manage_inventory, variant_rank, hs_code, origin_country, mid_code, material, weight, length, height, width, metadata, created_at, updated_at FROM product_variants WHERE product_id = $1 AND deleted_at IS NULL ORDER BY variant_rank ASC NULLS LAST").bind(id).fetch_all(&*state.db).await?;
     let mut variants = Vec::new();
