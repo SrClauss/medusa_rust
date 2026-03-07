@@ -13,10 +13,13 @@ pub mod draft_orders;
 pub mod gift_cards;
 pub mod inventory;
 pub mod invites;
+pub mod notifications;
+pub mod order_edits;
 pub mod orders;
 pub mod payment_providers;
 pub mod price_lists;
 pub mod products;
+pub mod promotions;
 pub mod regions;
 pub mod return_reasons;
 pub mod returns;
@@ -296,6 +299,32 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
         )
         // Payment Providers (admin)
         .route(ADMIN_PAYMENT_PROVIDERS, get(payment_providers::list))
+        // Order Edits
+        .route(ADMIN_ORDER_EDITS, get(order_edits::list).post(order_edits::create))
+        .route(
+            ADMIN_ORDER_EDITS_ID,
+            get(order_edits::get).post(order_edits::update).delete(order_edits::delete_one),
+        )
+        .route(ADMIN_ORDER_EDITS_ID_REQUEST, post(order_edits::request))
+        .route(ADMIN_ORDER_EDITS_ID_CONFIRM, post(order_edits::confirm))
+        .route(ADMIN_ORDER_EDITS_ID_DECLINE, post(order_edits::decline))
+        .route(ADMIN_ORDER_EDITS_ID_CANCEL, post(order_edits::cancel))
+        .route(ADMIN_ORDER_EDITS_ID_ITEMS, post(order_edits::add_line_item))
+        .route(ADMIN_ORDER_EDITS_ID_ITEMS_ID, post(order_edits::update_line_item))
+        .route(ADMIN_ORDER_EDITS_ID_CHANGES_ID, delete(order_edits::delete_item_change))
+        // Promotions
+        .route(ADMIN_PROMOTIONS, get(promotions::list).post(promotions::create))
+        .route(
+            ADMIN_PROMOTIONS_ID,
+            get(promotions::get).post(promotions::update).delete(promotions::delete_one),
+        )
+        .route(
+            ADMIN_PROMOTIONS_ID_RULES,
+            post(promotions::add_rules).delete(promotions::remove_rules),
+        )
+        // Notifications
+        .route(ADMIN_NOTIFICATIONS, get(notifications::list))
+        .route(ADMIN_NOTIFICATIONS_ID, get(notifications::get))
         // Apply auth middleware to all protected routes.
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

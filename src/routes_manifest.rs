@@ -282,6 +282,28 @@ pub const ADMIN_SHIPPING_PROFILES_ID: &str = "/admin/shipping-profiles/{id}";
 // Payment Providers (admin)
 pub const ADMIN_PAYMENT_PROVIDERS: &str = "/admin/payment-providers";
 
+// Order Edits
+pub const ADMIN_ORDER_EDITS: &str = "/admin/order-edits";
+pub const ADMIN_ORDER_EDITS_ID: &str = "/admin/order-edits/{id}";
+pub const ADMIN_ORDER_EDITS_ID_REQUEST: &str = "/admin/order-edits/{id}/request";
+pub const ADMIN_ORDER_EDITS_ID_CONFIRM: &str = "/admin/order-edits/{id}/confirm";
+pub const ADMIN_ORDER_EDITS_ID_DECLINE: &str = "/admin/order-edits/{id}/decline";
+pub const ADMIN_ORDER_EDITS_ID_CANCEL: &str = "/admin/order-edits/{id}/cancel";
+pub const ADMIN_ORDER_EDITS_ID_ITEMS: &str = "/admin/order-edits/{id}/items";
+pub const ADMIN_ORDER_EDITS_ID_ITEMS_ID: &str = "/admin/order-edits/{id}/items/{item_id}";
+pub const ADMIN_ORDER_EDITS_ID_CHANGES_ID: &str = "/admin/order-edits/{id}/changes/{change_id}";
+
+// Promotions
+pub const ADMIN_PROMOTIONS: &str = "/admin/promotions";
+pub const ADMIN_PROMOTIONS_ID: &str = "/admin/promotions/{id}";
+pub const ADMIN_PROMOTIONS_ID_RULES: &str = "/admin/promotions/{id}/rules";
+pub const ADMIN_PROMOTIONS_ID_BUY_RULES: &str = "/admin/promotions/{id}/buy-rules";
+pub const ADMIN_PROMOTIONS_ID_TARGET_RULES: &str = "/admin/promotions/{id}/target-rules";
+
+// Notifications
+pub const ADMIN_NOTIFICATIONS: &str = "/admin/notifications";
+pub const ADMIN_NOTIFICATIONS_ID: &str = "/admin/notifications/{id}";
+
 // ─── STORE (additional) ───────────────────────────────────────────────────────
 
 // Locales
