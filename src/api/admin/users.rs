@@ -1,9 +1,9 @@
 //! Admin users handlers — full CRUD
-use axum::{extract::{Path, Query, State}, http::StatusCode, Json};
+use axum::{extract::{Extension, Path, Query, State}, http::StatusCode, Json};
 use serde::Deserialize;
 use sqlx::Row;
 use uuid::Uuid;
-use crate::{error::AppError, state::AppState};
+use crate::{auth::jwt::AuthAdmin, error::AppError, state::AppState};
 
 #[derive(Debug, Deserialize)]
 pub struct ListParams {
@@ -45,6 +45,22 @@ pub async fn list(
         .await?;
     let users: Vec<_> = rows.iter().map(|r| user_json(r)).collect();
     Ok(Json(serde_json::json!({ "users": users, "count": count, "offset": p.offset, "limit": p.limit })))
+}
+
+pub async fn get_me(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthAdmin>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let id: Uuid = auth.0.sub.parse().map_err(|_| AppError::Unauthorized)?;
+    let r = sqlx::query(
+        "SELECT id, email, first_name, last_name, role, api_token, metadata, created_at, updated_at \
+         FROM users WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(&*state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+    Ok(Json(serde_json::json!({ "user": user_json(&r) })))
 }
 
 pub async fn get(

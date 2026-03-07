@@ -4,10 +4,16 @@ pub mod auth;
 pub mod carts;
 pub mod categories;
 pub mod collections;
+pub mod currencies;
 pub mod customers;
+pub mod gift_cards;
 pub mod orders;
+pub mod payment_providers;
+pub mod product_tags;
+pub mod product_types;
 pub mod products;
 pub mod regions;
+pub mod return_reasons;
 pub mod returns;
 pub mod shipping_options;
 pub mod swaps;
@@ -30,6 +36,22 @@ pub fn store_router(state: AppState) -> Router<AppState> {
         // Categories
         .route(STORE_PRODUCT_CATEGORIES, get(categories::list))
         .route(STORE_PRODUCT_CATEGORIES_ID, get(categories::get))
+        // Product Tags
+        .route(STORE_PRODUCT_TAGS, get(product_tags::list))
+        .route(STORE_PRODUCT_TAGS_ID, get(product_tags::get))
+        // Product Types
+        .route(STORE_PRODUCT_TYPES, get(product_types::list))
+        .route(STORE_PRODUCT_TYPES_ID, get(product_types::get))
+        // Currencies
+        .route(STORE_CURRENCIES, get(currencies::list))
+        .route(STORE_CURRENCIES_CODE, get(currencies::get))
+        // Gift Cards
+        .route(STORE_GIFT_CARDS_ID, get(gift_cards::get))
+        // Return Reasons
+        .route(STORE_RETURN_REASONS, get(return_reasons::list))
+        .route(STORE_RETURN_REASONS_ID, get(return_reasons::get))
+        // Payment Providers
+        .route(STORE_PAYMENT_PROVIDERS, get(payment_providers::list))
         // Carts (public — guests create carts without being logged in)
         .route(STORE_CARTS, post(carts::create))
         .route(STORE_CARTS_ID, get(carts::get).post(carts::update))
