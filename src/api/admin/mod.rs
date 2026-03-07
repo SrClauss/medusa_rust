@@ -1,24 +1,34 @@
 //! Admin API routes.
 
+pub mod api_keys;
 pub mod auth;
 pub mod batch_jobs;
 pub mod categories;
 pub mod collections;
 pub mod currencies;
+pub mod customer_groups;
 pub mod customers;
 pub mod discounts;
 pub mod draft_orders;
 pub mod gift_cards;
 pub mod inventory;
+pub mod invites;
 pub mod orders;
+pub mod payment_providers;
 pub mod price_lists;
 pub mod products;
 pub mod regions;
 pub mod return_reasons;
 pub mod returns;
+pub mod sales_channels;
 pub mod shipping_options;
+pub mod shipping_profiles;
+pub mod stock_locations;
+pub mod stores;
 pub mod swaps;
+pub mod tax_providers;
 pub mod tax_rates;
+pub mod tax_regions;
 pub mod uploads;
 pub mod users;
 
@@ -228,6 +238,64 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
         .route(ADMIN_BATCH_JOBS_ID, get(batch_jobs::get))
         .route(ADMIN_BATCH_JOBS_ID_CONFIRM, post(batch_jobs::confirm))
         .route(ADMIN_BATCH_JOBS_ID_CANCEL, post(batch_jobs::cancel))
+        // Sales Channels
+        .route(ADMIN_SALES_CHANNELS, get(sales_channels::list).post(sales_channels::create))
+        .route(
+            ADMIN_SALES_CHANNELS_ID,
+            get(sales_channels::get).put(sales_channels::update).delete(sales_channels::delete_one),
+        )
+        .route(
+            ADMIN_SALES_CHANNELS_ID_PRODUCTS,
+            post(sales_channels::add_products).delete(sales_channels::remove_products),
+        )
+        // Stock Locations
+        .route(ADMIN_STOCK_LOCATIONS, get(stock_locations::list).post(stock_locations::create))
+        .route(
+            ADMIN_STOCK_LOCATIONS_ID,
+            get(stock_locations::get).post(stock_locations::update).delete(stock_locations::delete_one),
+        )
+        .route(ADMIN_STOCK_LOCATIONS_ID_FULFILLMENT_PROVIDERS, post(stock_locations::link_fulfillment_providers))
+        .route(ADMIN_STOCK_LOCATIONS_ID_FULFILLMENT_SETS, post(stock_locations::link_fulfillment_sets))
+        .route(ADMIN_STOCK_LOCATIONS_ID_SALES_CHANNELS, post(stock_locations::link_sales_channels))
+        // Stores
+        .route(ADMIN_STORES, get(stores::list))
+        .route(ADMIN_STORES_ID, get(stores::get).post(stores::update))
+        // Customer Groups
+        .route(ADMIN_CUSTOMER_GROUPS, get(customer_groups::list).post(customer_groups::create))
+        .route(
+            ADMIN_CUSTOMER_GROUPS_ID,
+            get(customer_groups::get).post(customer_groups::update).delete(customer_groups::delete_one),
+        )
+        .route(
+            ADMIN_CUSTOMER_GROUPS_ID_CUSTOMERS,
+            get(customer_groups::list_customers)
+                .post(customer_groups::add_customers)
+                .delete(customer_groups::remove_customers),
+        )
+        // API Keys
+        .route(ADMIN_API_KEYS, get(api_keys::list).post(api_keys::create))
+        .route(
+            ADMIN_API_KEYS_ID,
+            get(api_keys::get).post(api_keys::update).delete(api_keys::delete_one),
+        )
+        .route(ADMIN_API_KEYS_ID_REVOKE, post(api_keys::revoke))
+        // Invites
+        .route(ADMIN_INVITES, get(invites::list).post(invites::create))
+        .route(ADMIN_INVITES_ID, delete(invites::delete_one))
+        .route(ADMIN_INVITES_ID_ACCEPT, post(invites::accept))
+        // Tax Providers
+        .route(ADMIN_TAX_PROVIDERS, get(tax_providers::list))
+        // Tax Regions
+        .route(ADMIN_TAX_REGIONS, get(tax_regions::list).post(tax_regions::create))
+        .route(ADMIN_TAX_REGIONS_ID, get(tax_regions::get).delete(tax_regions::delete_one))
+        // Shipping Profiles
+        .route(ADMIN_SHIPPING_PROFILES, get(shipping_profiles::list).post(shipping_profiles::create))
+        .route(
+            ADMIN_SHIPPING_PROFILES_ID,
+            get(shipping_profiles::get).post(shipping_profiles::update).delete(shipping_profiles::delete_one),
+        )
+        // Payment Providers (admin)
+        .route(ADMIN_PAYMENT_PROVIDERS, get(payment_providers::list))
         // Apply auth middleware to all protected routes.
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

@@ -234,6 +234,85 @@ pub const STORE_PRODUCT_TYPES_ID: &str = "/store/product-types/{id}";
 // Payment Providers
 pub const STORE_PAYMENT_PROVIDERS: &str = "/store/payment-providers";
 
+// Sales Channels
+pub const ADMIN_SALES_CHANNELS: &str = "/admin/sales-channels";
+pub const ADMIN_SALES_CHANNELS_ID: &str = "/admin/sales-channels/{id}";
+pub const ADMIN_SALES_CHANNELS_ID_PRODUCTS: &str = "/admin/sales-channels/{id}/products";
+
+// Stock Locations
+pub const ADMIN_STOCK_LOCATIONS: &str = "/admin/stock-locations";
+pub const ADMIN_STOCK_LOCATIONS_ID: &str = "/admin/stock-locations/{id}";
+pub const ADMIN_STOCK_LOCATIONS_ID_FULFILLMENT_PROVIDERS: &str =
+    "/admin/stock-locations/{id}/fulfillment-providers";
+pub const ADMIN_STOCK_LOCATIONS_ID_FULFILLMENT_SETS: &str =
+    "/admin/stock-locations/{id}/fulfillment-sets";
+pub const ADMIN_STOCK_LOCATIONS_ID_SALES_CHANNELS: &str =
+    "/admin/stock-locations/{id}/sales-channels";
+
+// Stores
+pub const ADMIN_STORES: &str = "/admin/stores";
+pub const ADMIN_STORES_ID: &str = "/admin/stores/{id}";
+
+// Customer Groups
+pub const ADMIN_CUSTOMER_GROUPS: &str = "/admin/customer-groups";
+pub const ADMIN_CUSTOMER_GROUPS_ID: &str = "/admin/customer-groups/{id}";
+pub const ADMIN_CUSTOMER_GROUPS_ID_CUSTOMERS: &str = "/admin/customer-groups/{id}/customers";
+
+// API Keys
+pub const ADMIN_API_KEYS: &str = "/admin/api-keys";
+pub const ADMIN_API_KEYS_ID: &str = "/admin/api-keys/{id}";
+pub const ADMIN_API_KEYS_ID_REVOKE: &str = "/admin/api-keys/{id}/revoke";
+
+// Invites
+pub const ADMIN_INVITES: &str = "/admin/invites";
+pub const ADMIN_INVITES_ID: &str = "/admin/invites/{id}";
+pub const ADMIN_INVITES_ID_ACCEPT: &str = "/admin/invites/{id}/accept";
+
+// Tax Providers
+pub const ADMIN_TAX_PROVIDERS: &str = "/admin/tax-providers";
+
+// Tax Regions
+pub const ADMIN_TAX_REGIONS: &str = "/admin/tax-regions";
+pub const ADMIN_TAX_REGIONS_ID: &str = "/admin/tax-regions/{id}";
+
+// Shipping Profiles
+pub const ADMIN_SHIPPING_PROFILES: &str = "/admin/shipping-profiles";
+pub const ADMIN_SHIPPING_PROFILES_ID: &str = "/admin/shipping-profiles/{id}";
+
+// Payment Providers (admin)
+pub const ADMIN_PAYMENT_PROVIDERS: &str = "/admin/payment-providers";
+
+// ─── STORE (additional) ───────────────────────────────────────────────────────
+
+// Locales
+pub const STORE_LOCALES: &str = "/store/locales";
+
+// Payment Collections
+pub const STORE_PAYMENT_COLLECTIONS: &str = "/store/payment-collections";
+pub const STORE_PAYMENT_COLLECTIONS_ID_SESSIONS: &str =
+    "/store/payment-collections/{id}/payment-sessions";
+
+// Store Credit Accounts
+pub const STORE_STORE_CREDIT_ACCOUNTS: &str = "/store/store-credit-accounts";
+pub const STORE_STORE_CREDIT_ACCOUNTS_ID: &str = "/store/store-credit-accounts/{id}";
+
+// Cart sub-routes (additional)
+pub const STORE_CARTS_ID_DISCOUNTS_CODE: &str = "/store/carts/{id}/discounts/{code}";
+pub const STORE_CARTS_ID_GIFT_CARDS: &str = "/store/carts/{id}/gift-cards";
+pub const STORE_CARTS_ID_PROMOTIONS: &str = "/store/carts/{id}/promotions";
+pub const STORE_CARTS_ID_STORE_CREDITS: &str = "/store/carts/{id}/store-credits";
+pub const STORE_CARTS_ID_PAYMENT_SESSIONS_ID_REFRESH: &str =
+    "/store/carts/{id}/payment-sessions/{provider_id}/refresh";
+
+// Order Transfers
+pub const STORE_ORDERS_ID_TRANSFER_ACCEPT: &str = "/store/orders/{id}/transfer/accept";
+pub const STORE_ORDERS_ID_TRANSFER_CANCEL: &str = "/store/orders/{id}/transfer/cancel";
+pub const STORE_ORDERS_ID_TRANSFER_DECLINE: &str = "/store/orders/{id}/transfer/decline";
+pub const STORE_ORDERS_ID_TRANSFER_REQUEST: &str = "/store/orders/{id}/transfer/request";
+
+// Shipping Option calculate
+pub const STORE_SHIPPING_OPTIONS_ID_CALCULATE: &str = "/store/shipping-options/{id}/calculate";
+
 // ─── Wizard / Importer ────────────────────────────────────────────────────────
 pub const WIZARD_IMPORT: &str = "/wizard/import";
 pub const WIZARD_IMPORT_STATUS_ID: &str = "/wizard/import/{job_id}/status";

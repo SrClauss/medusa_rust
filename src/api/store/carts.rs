@@ -365,3 +365,30 @@ pub async fn set_customer(
 
     Ok(Json(serde_json::json!({ "cart": fetch_cart(&state, cart_id).await? })))
 }
+
+
+// ─── Additional cart sub-routes (stubs) ───────────────────────────────────────
+
+pub async fn add_gift_card(
+    State(_state): State<AppState>,
+    Path(cart_id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({ "cart": { "id": cart_id } })))
+}
+
+pub async fn add_promotion(
+    State(_state): State<AppState>,
+    Path(cart_id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({ "cart": { "id": cart_id } })))
+}
+
+pub async fn add_store_credit(
+    State(_state): State<AppState>,
+    Path(cart_id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({ "cart": { "id": cart_id } })))
+}
