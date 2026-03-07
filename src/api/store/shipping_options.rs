@@ -39,3 +39,13 @@ pub async fn get_for_cart(State(state): State<AppState>, Path(cart_id): Path<Uui
     let options: Vec<_> = rows.iter().map(|r| opt_json(r)).collect();
     Ok(Json(serde_json::json!({ "shipping_options": options })))
 }
+
+// ─── Shipping option calculate (stub) ─────────────────────────────────────────
+
+pub async fn calculate(
+    State(_state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({ "shipping_option": { "id": id, "amount": 0 } })))
+}

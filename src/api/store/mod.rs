@@ -7,7 +7,9 @@ pub mod collections;
 pub mod currencies;
 pub mod customers;
 pub mod gift_cards;
+pub mod locales;
 pub mod orders;
+pub mod payment_collections;
 pub mod payment_providers;
 pub mod product_tags;
 pub mod product_types;
@@ -16,6 +18,7 @@ pub mod regions;
 pub mod return_reasons;
 pub mod returns;
 pub mod shipping_options;
+pub mod store_credits;
 pub mod swaps;
 
 use axum::{middleware, routing::{delete, get, post}, Router};
@@ -52,6 +55,14 @@ pub fn store_router(state: AppState) -> Router<AppState> {
         .route(STORE_RETURN_REASONS_ID, get(return_reasons::get))
         // Payment Providers
         .route(STORE_PAYMENT_PROVIDERS, get(payment_providers::list))
+        // Locales
+        .route(STORE_LOCALES, get(locales::list))
+        // Payment Collections
+        .route(STORE_PAYMENT_COLLECTIONS, post(payment_collections::create))
+        .route(STORE_PAYMENT_COLLECTIONS_ID_SESSIONS, post(payment_collections::add_payment_session))
+        // Store Credit Accounts
+        .route(STORE_STORE_CREDIT_ACCOUNTS, get(store_credits::list))
+        .route(STORE_STORE_CREDIT_ACCOUNTS_ID, get(store_credits::get))
         // Carts (public — guests create carts without being logged in)
         .route(STORE_CARTS, post(carts::create))
         .route(STORE_CARTS_ID, get(carts::get).post(carts::update))
@@ -60,10 +71,15 @@ pub fn store_router(state: AppState) -> Router<AppState> {
         .route(STORE_CARTS_ID_PAYMENT_SESSIONS, post(carts::create_payment_sessions))
         .route(STORE_CARTS_ID_PAYMENT_SESSION, post(carts::select_payment_session))
         .route(STORE_CARTS_ID_PAYMENT_SESSIONS_ID, delete(carts::delete_payment_session))
+        .route(STORE_CARTS_ID_PAYMENT_SESSIONS_ID_REFRESH, post(carts::refresh_payment_session))
         .route(STORE_CARTS_ID_SHIPPING_METHODS, post(carts::add_shipping_method))
         .route(STORE_CARTS_ID_COMPLETE, post(carts::complete))
         .route(STORE_CARTS_ID_TAXES, post(carts::calculate_taxes))
         .route(STORE_CARTS_ID_CUSTOMER, post(carts::set_customer))
+        .route(STORE_CARTS_ID_DISCOUNTS_CODE, post(carts::apply_discount).delete(carts::remove_discount))
+        .route(STORE_CARTS_ID_GIFT_CARDS, post(carts::add_gift_card))
+        .route(STORE_CARTS_ID_PROMOTIONS, post(carts::add_promotion))
+        .route(STORE_CARTS_ID_STORE_CREDITS, post(carts::add_store_credit))
         // Customer registration & password reset (public)
         .route(STORE_CUSTOMERS, post(customers::create_customer))
         .route(STORE_CUSTOMERS_PASSWORD_TOKEN, post(customers::request_password_reset))
@@ -72,12 +88,17 @@ pub fn store_router(state: AppState) -> Router<AppState> {
         .route(STORE_ORDERS, get(orders::get_order_by_params))
         .route(STORE_ORDERS_ID, get(orders::get_order))
         .route(STORE_ORDERS_BATCH, get(orders::get_orders_batch))
+        .route(STORE_ORDERS_ID_TRANSFER_ACCEPT, post(orders::transfer_accept))
+        .route(STORE_ORDERS_ID_TRANSFER_CANCEL, post(orders::transfer_cancel))
+        .route(STORE_ORDERS_ID_TRANSFER_DECLINE, post(orders::transfer_decline))
+        .route(STORE_ORDERS_ID_TRANSFER_REQUEST, post(orders::transfer_request))
         // Regions
         .route(STORE_REGIONS, get(regions::list))
         .route(STORE_REGIONS_ID, get(regions::get))
         // Shipping options for cart
         .route(STORE_SHIPPING_OPTIONS, get(shipping_options::list))
         .route(STORE_SHIPPING_OPTIONS_CART_ID, get(shipping_options::get_for_cart))
+        .route(STORE_SHIPPING_OPTIONS_ID_CALCULATE, post(shipping_options::calculate))
         // Swaps & Returns (public — customer provides email/return_id)
         .route(STORE_SWAPS, post(swaps::create))
         .route(STORE_SWAPS_CART_ID, get(swaps::get_by_cart))

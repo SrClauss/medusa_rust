@@ -188,3 +188,37 @@ pub async fn get_order_by_params(State(state): State<AppState>, Query(p): Query<
 pub async fn get_orders_batch(State(state): State<AppState>, Query(p): Query<OrderParams>) -> Result<Json<serde_json::Value>, AppError> {
     get_order_by_params(axum::extract::State(state), axum::extract::Query(p)).await
 }
+
+// ─── Order transfer stubs ─────────────────────────────────────────────────────
+
+pub async fn transfer_accept(
+    State(_state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({ "order": { "id": id } })))
+}
+
+pub async fn transfer_cancel(
+    State(_state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({ "order": { "id": id } })))
+}
+
+pub async fn transfer_decline(
+    State(_state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({ "order": { "id": id } })))
+}
+
+pub async fn transfer_request(
+    State(_state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({ "order": { "id": id } })))
+}

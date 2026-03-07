@@ -10,9 +10,9 @@
 
 | Categoria | Medusa JS | Medusa Rust | Cobertura |
 |-----------|-----------|-------------|-----------|
-| Store Routes | 54 | 57 | ~94% |
-| Admin Routes | 245 | 92 | ~38% |
-| **Total** | **299** | **149** | **~50%** |
+| Store Routes | 54 | 70 | ~100% |
+| Admin Routes | 245 | 140 | ~57% |
+| **Total** | **299** | **210** | **~70%** |
 
 ---
 
@@ -61,13 +61,13 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 | ✅ | POST /store/carts/{id} | Update cart |
 | ✅ | POST /store/carts/{id}/complete | Complete cart |
 | ✅ | POST /store/carts/{id}/customer | Set customer |
-| ❌ | POST /store/carts/{id}/gift-cards | Add gift card |
+| ✅ | POST /store/carts/{id}/gift-cards | Add gift card |
 | ✅ | POST /store/carts/{id}/line-items | Add line item |
 | ✅ | POST /store/carts/{id}/line-items/{line_id} | Update line item |
 | ✅ | DELETE /store/carts/{id}/line-items/{line_id} | Remove line item |
-| ❌ | POST /store/carts/{id}/promotions | Add promotion |
+| ✅ | POST /store/carts/{id}/promotions | Add promotion |
 | ✅ | POST /store/carts/{id}/shipping-methods | Add shipping method |
-| ❌ | POST /store/carts/{id}/store-credits | Add store credit |
+| ✅ | POST /store/carts/{id}/store-credits | Add store credit |
 | ✅ | POST /store/carts/{id}/taxes | Calculate taxes |
 | ✅ | POST /store/carts/{id}/discounts/{code} | Apply discount |
 | ✅ | DELETE /store/carts/{id}/discounts/{code} | Remove discount |
@@ -114,23 +114,23 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Locales (1 rota)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /store/locales | List locales |
+| ✅ | GET /store/locales | List locales |
 
 ### Pedidos (6 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
 | ✅ | GET /store/orders | List orders |
 | ✅ | GET /store/orders/{id} | Get order |
-| ❌ | POST /store/orders/{id}/transfer/accept | Accept transfer |
-| ❌ | POST /store/orders/{id}/transfer/cancel | Cancel transfer |
-| ❌ | POST /store/orders/{id}/transfer/decline | Decline transfer |
-| ❌ | POST /store/orders/{id}/transfer/request | Request transfer |
+| ✅ | POST /store/orders/{id}/transfer/accept | Accept transfer |
+| ✅ | POST /store/orders/{id}/transfer/cancel | Cancel transfer |
+| ✅ | POST /store/orders/{id}/transfer/decline | Decline transfer |
+| ✅ | POST /store/orders/{id}/transfer/request | Request transfer |
 
 ### Payment Collections (2 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | POST /store/payment-collections | Create payment collection |
-| ❌ | POST /store/payment-collections/{id}/payment-sessions | Create payment session |
+| ✅ | POST /store/payment-collections | Create payment collection |
+| ✅ | POST /store/payment-collections/{id}/payment-sessions | Create payment session |
 
 ### Payment Providers (1 rota)
 | Status | Rota | Notas |
@@ -182,13 +182,13 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 | Status | Rota | Notas |
 |--------|------|-------|
 | ✅ | GET /store/shipping-options | List shipping options |
-| ❌ | POST /store/shipping-options/{id}/calculate | Calculate shipping |
+| ✅ | POST /store/shipping-options/{id}/calculate | Calculate shipping |
 
 ### Store Credit Accounts (2 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /store/store-credit-accounts | List store credit accounts |
-| ❌ | GET /store/store-credit-accounts/{id} | Get store credit account |
+| ✅ | GET /store/store-credit-accounts | List store credit accounts |
+| ✅ | GET /store/store-credit-accounts/{id} | Get store credit account |
 
 ### Swaps (2 rotas)
 | Status | Rota | Notas |
@@ -203,12 +203,12 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### API Keys (5 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/api-keys | List API keys |
-| ❌ | POST /admin/api-keys | Create API key |
-| ❌ | GET /admin/api-keys/{id} | Get API key |
-| ❌ | POST /admin/api-keys/{id} | Update API key |
-| ❌ | DELETE /admin/api-keys/{id} | Delete API key |
-| ❌ | POST /admin/api-keys/{id}/revoke | Revoke API key |
+| ✅ | GET /admin/api-keys | List API keys |
+| ✅ | POST /admin/api-keys | Create API key |
+| ✅ | GET /admin/api-keys/{id} | Get API key |
+| ✅ | POST /admin/api-keys/{id} | Update API key |
+| ✅ | DELETE /admin/api-keys/{id} | Delete API key |
+| ✅ | POST /admin/api-keys/{id}/revoke | Revoke API key |
 | ❌ | POST /admin/api-keys/{id}/sales-channels | Link sales channels |
 
 ### Campaigns (4 rotas)
@@ -255,12 +255,12 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Customer Groups (5 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/customer-groups | List customer groups |
-| ❌ | POST /admin/customer-groups | Create customer group |
-| ❌ | GET /admin/customer-groups/{id} | Get customer group |
-| ❌ | POST /admin/customer-groups/{id} | Update customer group |
-| ❌ | DELETE /admin/customer-groups/{id} | Delete customer group |
-| ❌ | POST /admin/customer-groups/{id}/customers | Link customers |
+| ✅ | GET /admin/customer-groups | List customer groups |
+| ✅ | POST /admin/customer-groups | Create customer group |
+| ✅ | GET /admin/customer-groups/{id} | Get customer group |
+| ✅ | POST /admin/customer-groups/{id} | Update customer group |
+| ✅ | DELETE /admin/customer-groups/{id} | Delete customer group |
+| ✅ | POST /admin/customer-groups/{id}/customers | Link customers |
 
 ### Customers (8 rotas)
 | Status | Rota | Notas |
@@ -349,11 +349,12 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Invites (5 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/invites | List invites |
-| ❌ | POST /admin/invites | Create invite |
+| ✅ | GET /admin/invites | List invites |
+| ✅ | POST /admin/invites | Create invite |
 | ❌ | POST /admin/invites/accept | Accept invite |
 | ❌ | GET /admin/invites/{id} | Get invite |
-| ❌ | DELETE /admin/invites/{id} | Delete invite |
+| ✅ | DELETE /admin/invites/{id} | Delete invite |
+| ✅ | POST /admin/invites/{id}/accept | Accept invite (by id) |
 | ❌ | POST /admin/invites/{id}/resend | Resend invite |
 
 ### Locales (2 rotas)
@@ -582,12 +583,12 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Sales Channels (5 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/sales-channels | List |
-| ❌ | POST /admin/sales-channels | Create |
-| ❌ | GET /admin/sales-channels/{id} | Get |
-| ❌ | POST /admin/sales-channels/{id} | Update |
-| ❌ | DELETE /admin/sales-channels/{id} | Delete |
-| ❌ | POST /admin/sales-channels/{id}/products | Link products |
+| ✅ | GET /admin/sales-channels | List |
+| ✅ | POST /admin/sales-channels | Create |
+| ✅ | GET /admin/sales-channels/{id} | Get |
+| ✅ | POST /admin/sales-channels/{id} | Update |
+| ✅ | DELETE /admin/sales-channels/{id} | Delete |
+| ✅ | POST /admin/sales-channels/{id}/products | Link products |
 
 ### Shipping Option Types (3 rotas)
 | Status | Rota | Notas |
@@ -611,23 +612,23 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Shipping Profiles (4 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/shipping-profiles | List |
-| ❌ | POST /admin/shipping-profiles | Create |
-| ❌ | GET /admin/shipping-profiles/{id} | Get |
-| ❌ | POST /admin/shipping-profiles/{id} | Update |
-| ❌ | DELETE /admin/shipping-profiles/{id} | Delete |
+| ✅ | GET /admin/shipping-profiles | List |
+| ✅ | POST /admin/shipping-profiles | Create |
+| ✅ | GET /admin/shipping-profiles/{id} | Get |
+| ✅ | POST /admin/shipping-profiles/{id} | Update |
+| ✅ | DELETE /admin/shipping-profiles/{id} | Delete |
 
 ### Stock Locations (7 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/stock-locations | List |
-| ❌ | POST /admin/stock-locations | Create |
-| ❌ | GET /admin/stock-locations/{id} | Get |
-| ❌ | POST /admin/stock-locations/{id} | Update |
-| ❌ | DELETE /admin/stock-locations/{id} | Delete |
-| ❌ | POST /admin/stock-locations/{id}/fulfillment-providers | Link providers |
-| ❌ | POST /admin/stock-locations/{id}/fulfillment-sets | Link sets |
-| ❌ | POST /admin/stock-locations/{id}/sales-channels | Link channels |
+| ✅ | GET /admin/stock-locations | List |
+| ✅ | POST /admin/stock-locations | Create |
+| ✅ | GET /admin/stock-locations/{id} | Get |
+| ✅ | POST /admin/stock-locations/{id} | Update |
+| ✅ | DELETE /admin/stock-locations/{id} | Delete |
+| ✅ | POST /admin/stock-locations/{id}/fulfillment-providers | Link providers |
+| ✅ | POST /admin/stock-locations/{id}/fulfillment-sets | Link sets |
+| ✅ | POST /admin/stock-locations/{id}/sales-channels | Link channels |
 
 ### Store Credit Accounts (5 rotas)
 | Status | Rota | Notas |
@@ -642,14 +643,14 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Stores (3 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/stores | List stores |
-| ❌ | GET /admin/stores/{id} | Get store |
-| ❌ | POST /admin/stores/{id} | Update store |
+| ✅ | GET /admin/stores | List stores |
+| ✅ | GET /admin/stores/{id} | Get store |
+| ✅ | POST /admin/stores/{id} | Update store |
 
 ### Tax Providers (1 rota)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/tax-providers | List tax providers |
+| ✅ | GET /admin/tax-providers | List tax providers |
 
 ### Tax Rates (6 rotas)
 | Status | Rota | Notas |
@@ -665,10 +666,10 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Tax Regions (4 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/tax-regions | List |
-| ❌ | POST /admin/tax-regions | Create |
-| ❌ | GET /admin/tax-regions/{id} | Get |
-| ❌ | DELETE /admin/tax-regions/{id} | Delete |
+| ✅ | GET /admin/tax-regions | List |
+| ✅ | POST /admin/tax-regions | Create |
+| ✅ | GET /admin/tax-regions/{id} | Get |
+| ✅ | DELETE /admin/tax-regions/{id} | Delete |
 
 ### Translations (7 rotas)
 | Status | Rota | Notas |
