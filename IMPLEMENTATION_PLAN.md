@@ -1,6 +1,6 @@
 # Medusa Rust — Plano de Implementação
 
-> **Última atualização:** 2026-03-06  
+> **Última atualização:** 2026-03-07  
 > **Stack:** Axum + SQLx (PostgreSQL) + Moka cache + MinIO/S3  
 > **Objetivo:** Port completo do Medusa JS v2 para Rust
 
@@ -10,9 +10,9 @@
 
 | Categoria | Medusa JS | Medusa Rust | Cobertura |
 |-----------|-----------|-------------|-----------|
-| Store Routes | 54 | 47 | 87% |
-| Admin Routes | 245 | 68 | 28% |
-| **Total** | **299** | **115** | **38%** |
+| Store Routes | 54 | 48 | 89% |
+| Admin Routes | 245 | 85 | 35% |
+| **Total** | **299** | **133** | **44%** |
 
 ---
 
@@ -60,7 +60,7 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 | ✅ | GET /store/carts/{id} | Get cart |
 | ✅ | POST /store/carts/{id} | Update cart |
 | ✅ | POST /store/carts/{id}/complete | Complete cart |
-| ❌ | POST /store/carts/{id}/customer | Set customer |
+| ✅ | POST /store/carts/{id}/customer | Set customer |
 | ❌ | POST /store/carts/{id}/gift-cards | Add gift card |
 | ✅ | POST /store/carts/{id}/line-items | Add line item |
 | ✅ | POST /store/carts/{id}/line-items/{line_id} | Update line item |
@@ -248,8 +248,9 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Currencies (2 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/currencies | List currencies |
-| ❌ | GET /admin/currencies/{code} | Get currency |
+| ✅ | GET /admin/currencies | List currencies |
+| ✅ | GET /admin/currencies/{code} | Get currency |
+| ✅ | PUT /admin/currencies/{code} | Update currency |
 
 ### Customer Groups (5 rotas)
 | Status | Rota | Notas |
@@ -323,26 +324,26 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Gift Cards (4 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| 🟡 | GET /admin/gift-cards | List gift cards |
-| 🟡 | POST /admin/gift-cards | Create gift card |
-| ❌ | GET /admin/gift-cards/{id} | Get gift card |
-| ❌ | POST /admin/gift-cards/{id} | Update gift card |
-| ❌ | DELETE /admin/gift-cards/{id} | Delete gift card |
+| ✅ | GET /admin/gift-cards | List gift cards |
+| ✅ | POST /admin/gift-cards | Create gift card |
+| ✅ | GET /admin/gift-cards/{id} | Get gift card |
+| ✅ | PUT /admin/gift-cards/{id} | Update gift card |
+| ✅ | DELETE /admin/gift-cards/{id} | Delete gift card |
 | ❌ | GET /admin/gift-cards/{id}/orders | Get gift card orders |
 
 ### Inventory Items (10 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| 🟡 | GET /admin/inventory-items | List inventory items |
-| ❌ | POST /admin/inventory-items | Create inventory item |
-| ❌ | GET /admin/inventory-items/{id} | Get inventory item |
-| ❌ | POST /admin/inventory-items/{id} | Update inventory item |
-| ❌ | DELETE /admin/inventory-items/{id} | Delete inventory item |
-| ❌ | GET /admin/inventory-items/{id}/location-levels | List location levels |
-| ❌ | POST /admin/inventory-items/{id}/location-levels | Create location level |
+| ✅ | GET /admin/inventory-items | List inventory items |
+| ✅ | POST /admin/inventory-items | Create inventory item |
+| ✅ | GET /admin/inventory-items/{id} | Get inventory item |
+| ✅ | PUT /admin/inventory-items/{id} | Update inventory item |
+| ✅ | DELETE /admin/inventory-items/{id} | Delete inventory item |
+| ✅ | GET /admin/inventory-items/{id}/location-levels | List location levels |
+| ✅ | POST /admin/inventory-items/{id}/location-levels | Create location level |
 | ❌ | POST /admin/inventory-items/{id}/location-levels/batch | Batch location levels |
-| ❌ | POST /admin/inventory-items/{id}/location-levels/{location_id} | Update location level |
-| ❌ | DELETE /admin/inventory-items/{id}/location-levels/{location_id} | Delete location level |
+| ✅ | PUT /admin/inventory-items/{id}/location-levels/{location_id} | Update location level |
+| ✅ | DELETE /admin/inventory-items/{id}/location-levels/{location_id} | Delete location level |
 | ❌ | POST /admin/inventory-items/location-levels/batch | Batch all |
 
 ### Invites (5 rotas)
@@ -432,14 +433,14 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Price Lists (7 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| 🟡 | GET /admin/price-lists | List price lists |
-| ❌ | POST /admin/price-lists | Create price list |
-| ❌ | GET /admin/price-lists/{id} | Get price list |
-| ❌ | POST /admin/price-lists/{id} | Update price list |
-| ❌ | DELETE /admin/price-lists/{id} | Delete price list |
+| ✅ | GET /admin/price-lists | List price lists |
+| ✅ | POST /admin/price-lists | Create price list |
+| ✅ | GET /admin/price-lists/{id} | Get price list |
+| ✅ | PUT /admin/price-lists/{id} | Update price list |
+| ✅ | DELETE /admin/price-lists/{id} | Delete price list |
 | ❌ | POST /admin/price-lists/{id}/prices | Add prices |
-| ❌ | POST /admin/price-lists/{id}/prices/batch | Batch prices |
-| ❌ | GET /admin/price-lists/{id}/products | Get products |
+| ✅ | POST /admin/price-lists/{id}/prices/batch | Batch prices |
+| ✅ | GET /admin/price-lists/{id}/products | Get products |
 
 ### Price Preferences (3 rotas)
 | Status | Rota | Notas |
@@ -563,8 +564,8 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Returns (16 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| 🟡 | GET /admin/returns | List returns |
-| 🟡 | POST /admin/returns/{id}/receive | Receive return |
+| ✅ | GET /admin/returns | List returns |
+| ✅ | POST /admin/returns/{id}/receive | Receive return |
 | ❌ | GET /admin/returns/{id} | Get return |
 | ❌ | POST /admin/returns/{id}/cancel | Cancel return |
 | ❌ | POST /admin/returns/{id}/dismiss-items | Dismiss items |

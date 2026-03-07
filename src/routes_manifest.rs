@@ -135,6 +135,10 @@ pub const ADMIN_DRAFT_ORDERS_ID_PAY: &str = "/admin/draft-orders/{id}/pay";
 pub const ADMIN_GIFT_CARDS: &str = "/admin/gift-cards";
 pub const ADMIN_GIFT_CARDS_ID: &str = "/admin/gift-cards/{id}";
 
+// Currencies
+pub const ADMIN_CURRENCIES: &str = "/admin/currencies";
+pub const ADMIN_CURRENCIES_CODE: &str = "/admin/currencies/{code}";
+
 // Batch Jobs
 pub const ADMIN_BATCH_JOBS: &str = "/admin/batch-jobs";
 pub const ADMIN_BATCH_JOBS_ID: &str = "/admin/batch-jobs/{id}";
@@ -167,6 +171,7 @@ pub const STORE_CARTS_ID_PAYMENT_SESSIONS_ID: &str =
 pub const STORE_CARTS_ID_SHIPPING_METHODS: &str = "/store/carts/{id}/shipping-methods";
 pub const STORE_CARTS_ID_COMPLETE: &str = "/store/carts/{id}/complete";
 pub const STORE_CARTS_ID_TAXES: &str = "/store/carts/{id}/taxes";
+pub const STORE_CARTS_ID_CUSTOMER: &str = "/store/carts/{id}/customer";
 
 // Customers
 pub const STORE_CUSTOMERS: &str = "/store/customers";
