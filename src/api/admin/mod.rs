@@ -14,6 +14,7 @@ pub mod orders;
 pub mod price_lists;
 pub mod products;
 pub mod regions;
+pub mod return_reasons;
 pub mod returns;
 pub mod shipping_options;
 pub mod swaps;
@@ -142,6 +143,7 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
         )
         // Users
         .route(ADMIN_USERS, get(users::list).post(users::create))
+        .route(ADMIN_USERS_ME, get(users::get_me))
         .route(
             ADMIN_USERS_ID,
             get(users::get).put(users::update).delete(users::delete_one),
@@ -184,6 +186,14 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
         // Returns
         .route(ADMIN_RETURNS, get(returns::list))
         .route(ADMIN_RETURNS_ID_RECEIVE, post(returns::receive))
+        // Return Reasons
+        .route(ADMIN_RETURN_REASONS, get(return_reasons::list).post(return_reasons::create))
+        .route(
+            ADMIN_RETURN_REASONS_ID,
+            get(return_reasons::get)
+                .put(return_reasons::update)
+                .delete(return_reasons::delete_one),
+        )
         // Swaps
         .route(ADMIN_SWAPS, get(swaps::list))
         .route(ADMIN_SWAPS_ID, get(swaps::get))

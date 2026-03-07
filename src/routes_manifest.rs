@@ -90,6 +90,7 @@ pub const ADMIN_SHIPPING_OPTIONS_ID: &str = "/admin/shipping-options/{id}";
 
 // Users
 pub const ADMIN_USERS: &str = "/admin/users";
+pub const ADMIN_USERS_ME: &str = "/admin/users/me";
 pub const ADMIN_USERS_ID: &str = "/admin/users/{id}";
 pub const ADMIN_USERS_PASSWORD_TOKEN: &str = "/admin/users/password-token";
 pub const ADMIN_USERS_RESET_PASSWORD: &str = "/admin/users/reset-password";
@@ -118,6 +119,10 @@ pub const ADMIN_UPLOADS: &str = "/admin/uploads";
 // Returns
 pub const ADMIN_RETURNS: &str = "/admin/returns";
 pub const ADMIN_RETURNS_ID_RECEIVE: &str = "/admin/returns/{id}/receive";
+
+// Return Reasons
+pub const ADMIN_RETURN_REASONS: &str = "/admin/return-reasons";
+pub const ADMIN_RETURN_REASONS_ID: &str = "/admin/return-reasons/{id}";
 
 // Swaps
 pub const ADMIN_SWAPS: &str = "/admin/swaps";
@@ -206,6 +211,28 @@ pub const STORE_SWAPS_CART_ID: &str = "/store/swaps/{cart_id}";
 
 // Returns
 pub const STORE_RETURNS: &str = "/store/returns";
+
+// Return Reasons
+pub const STORE_RETURN_REASONS: &str = "/store/return-reasons";
+pub const STORE_RETURN_REASONS_ID: &str = "/store/return-reasons/{id}";
+
+// Gift Cards
+pub const STORE_GIFT_CARDS_ID: &str = "/store/gift-cards/{id_or_code}";
+
+// Currencies
+pub const STORE_CURRENCIES: &str = "/store/currencies";
+pub const STORE_CURRENCIES_CODE: &str = "/store/currencies/{code}";
+
+// Product Tags
+pub const STORE_PRODUCT_TAGS: &str = "/store/product-tags";
+pub const STORE_PRODUCT_TAGS_ID: &str = "/store/product-tags/{id}";
+
+// Product Types
+pub const STORE_PRODUCT_TYPES: &str = "/store/product-types";
+pub const STORE_PRODUCT_TYPES_ID: &str = "/store/product-types/{id}";
+
+// Payment Providers
+pub const STORE_PAYMENT_PROVIDERS: &str = "/store/payment-providers";
 
 // ─── Wizard / Importer ────────────────────────────────────────────────────────
 pub const WIZARD_IMPORT: &str = "/wizard/import";

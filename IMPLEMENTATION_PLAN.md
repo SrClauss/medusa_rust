@@ -10,9 +10,9 @@
 
 | Categoria | Medusa JS | Medusa Rust | Cobertura |
 |-----------|-----------|-------------|-----------|
-| Store Routes | 54 | 48 | 89% |
-| Admin Routes | 245 | 85 | 35% |
-| **Total** | **299** | **133** | **44%** |
+| Store Routes | 54 | 57 | ~94% |
+| Admin Routes | 245 | 92 | ~38% |
+| **Total** | **299** | **149** | **~50%** |
 
 ---
 
@@ -86,8 +86,8 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Moedas (2 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /store/currencies | List currencies |
-| ❌ | GET /store/currencies/{code} | Get currency |
+| ✅ | GET /store/currencies | List currencies |
+| ✅ | GET /store/currencies/{code} | Get currency |
 
 ### Clientes (7 rotas)
 | Status | Rota | Notas |
@@ -109,7 +109,7 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Gift Cards (1 rota)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /store/gift-cards/{idOrCode} | Get gift card |
+| ✅ | GET /store/gift-cards/{idOrCode} | Get gift card |
 
 ### Locales (1 rota)
 | Status | Rota | Notas |
@@ -135,7 +135,7 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Payment Providers (1 rota)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /store/payment-providers | List payment providers |
+| ✅ | GET /store/payment-providers | List payment providers |
 
 ### Categorias de Produto (2 rotas)
 | Status | Rota | Notas |
@@ -146,14 +146,14 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Product Tags (2 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /store/product-tags | List product tags |
-| ❌ | GET /store/product-tags/{id} | Get product tag |
+| ✅ | GET /store/product-tags | List product tags |
+| ✅ | GET /store/product-tags/{id} | Get product tag |
 
 ### Product Types (2 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /store/product-types | List product types |
-| ❌ | GET /store/product-types/{id} | Get product type |
+| ✅ | GET /store/product-types | List product types |
+| ✅ | GET /store/product-types/{id} | Get product type |
 
 ### Produtos (2 rotas)
 | Status | Rota | Notas |
@@ -170,8 +170,8 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Return Reasons (2 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /store/return-reasons | List return reasons |
-| ❌ | GET /store/return-reasons/{id} | Get return reason |
+| ✅ | GET /store/return-reasons | List return reasons |
+| ✅ | GET /store/return-reasons/{id} | Get return reason |
 
 ### Returns (1 rota)
 | Status | Rota | Notas |
@@ -555,11 +555,11 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Return Reasons (4 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/return-reasons | List |
-| ❌ | POST /admin/return-reasons | Create |
-| ❌ | GET /admin/return-reasons/{id} | Get |
-| ❌ | POST /admin/return-reasons/{id} | Update |
-| ❌ | DELETE /admin/return-reasons/{id} | Delete |
+| ✅ | GET /admin/return-reasons | List |
+| ✅ | POST /admin/return-reasons | Create |
+| ✅ | GET /admin/return-reasons/{id} | Get |
+| ✅ | POST /admin/return-reasons/{id} | Update |
+| ✅ | DELETE /admin/return-reasons/{id} | Delete |
 
 ### Returns (16 rotas)
 | Status | Rota | Notas |
@@ -694,10 +694,10 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 |--------|------|-------|
 | ✅ | GET /admin/users | List users |
 | ✅ | POST /admin/users | Create user |
-| ❌ | GET /admin/users/me | Get current user |
-| ❌ | GET /admin/users/{id} | Get user |
-| ❌ | POST /admin/users/{id} | Update user |
-| ❌ | DELETE /admin/users/{id} | Delete user |
+| ✅ | GET /admin/users/me | Get current user |
+| ✅ | GET /admin/users/{id} | Get user |
+| ✅ | POST /admin/users/{id} | Update user |
+| ✅ | DELETE /admin/users/{id} | Delete user |
 | ❌ | DELETE /admin/users/{id}/roles/{role_id} | Remove role |
 
 ### Views (5 rotas)
@@ -880,7 +880,7 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 - ❌ product_tags, product_types (como entidades separadas)
 - ❌ promotions, promotion_rules
 - ❌ refund_reasons
-- ❌ return_reasons
+- ✅ return_reasons
 - ❌ returns (tabela completa), return_items
 - ❌ sales_channels, sales_channel_products
 - ❌ shipping_option_types, shipping_profiles
