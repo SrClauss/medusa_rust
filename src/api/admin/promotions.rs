@@ -207,3 +207,93 @@ pub async fn batch_target_rules(
         "promotion": { "id": id, "target_rules": [] }
     })))
 }
+
+/// Shared helper: fetch all promotion_rules rows for a promotion and serialise them.
+async fn fetch_promotion_rules(
+    state: &AppState,
+    promotion_id: Uuid,
+) -> Result<Vec<serde_json::Value>, AppError> {
+    let rows = sqlx::query(
+        "SELECT id, promotion_id, attribute, operator, created_at, updated_at \
+         FROM promotion_rules WHERE promotion_id = $1",
+    )
+    .bind(promotion_id)
+    .fetch_all(&*state.db)
+    .await?;
+    Ok(rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.get::<Uuid, _>("id"),
+                "promotion_id": r.get::<Uuid, _>("promotion_id"),
+                "attribute": r.get::<String, _>("attribute"),
+                "operator": r.get::<String, _>("operator"),
+                "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+                "updated_at": r.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
+            })
+        })
+        .collect())
+}
+
+/// GET /admin/promotions/{id}/buy-rules — list buy rules for a promotion.
+pub async fn list_buy_rules(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let rules = fetch_promotion_rules(&state, id).await?;
+    let count = rules.len() as i64;
+    Ok(Json(serde_json::json!({ "rules": rules, "count": count })))
+}
+
+/// GET /admin/promotions/{id}/target-rules — list target rules for a promotion.
+pub async fn list_target_rules(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let rules = fetch_promotion_rules(&state, id).await?;
+    let count = rules.len() as i64;
+    Ok(Json(serde_json::json!({ "rules": rules, "count": count })))
+}
+
+/// GET /admin/promotions/rule-attribute-options/{rule_type}
+/// Returns the list of valid promotion rule attributes for a given rule type.
+/// This is metadata-driven and mirrors Medusa JS v2 behaviour.
+pub async fn list_rule_attribute_options(
+    Path(rule_type): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let attributes: Vec<serde_json::Value> = match rule_type.as_str() {
+        "rules" => vec![
+            serde_json::json!({"id": "cart.subtotal",       "label": "Cart Subtotal",       "field_type": "number", "disguised": false}),
+            serde_json::json!({"id": "cart.customer_id",    "label": "Customer",            "field_type": "text",   "disguised": false}),
+            serde_json::json!({"id": "cart.customer.groups","label": "Customer Group",      "field_type": "text",   "disguised": false}),
+            serde_json::json!({"id": "cart.currency_code",  "label": "Currency Code",       "field_type": "text",   "disguised": false}),
+            serde_json::json!({"id": "cart.region_id",      "label": "Region",              "field_type": "text",   "disguised": false}),
+            serde_json::json!({"id": "cart.sales_channel_id","label": "Sales Channel",     "field_type": "text",   "disguised": false}),
+        ],
+        "buy-rules" | "target-rules" => vec![
+            serde_json::json!({"id": "items.product_id",    "label": "Product",             "field_type": "text",   "disguised": false}),
+            serde_json::json!({"id": "items.product.type_id","label": "Product Type",       "field_type": "text",   "disguised": false}),
+            serde_json::json!({"id": "items.product.collection_id","label": "Collection",   "field_type": "text",   "disguised": false}),
+            serde_json::json!({"id": "items.product.tags.id","label": "Product Tag",        "field_type": "text",   "disguised": false}),
+            serde_json::json!({"id": "items.product.categories.id","label": "Category",     "field_type": "text",   "disguised": false}),
+            serde_json::json!({"id": "items.quantity",      "label": "Quantity",            "field_type": "number", "disguised": false}),
+        ],
+        _ => vec![],
+    };
+    Ok(Json(serde_json::json!({ "attributes": attributes })))
+}
+
+/// GET /admin/promotions/rule-value-options/{rule_type}/{rule_attribute_id}
+/// Returns possible values for a specific rule attribute.
+pub async fn list_rule_value_options(
+    Path((rule_type, rule_attribute_id)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    // Returns an empty list with metadata — actual values depend on the attribute.
+    // Full implementation would query the DB for valid values (products, regions, etc.).
+    Ok(Json(serde_json::json!({
+        "values": [],
+        "rule_type": rule_type,
+        "rule_attribute_id": rule_attribute_id,
+        "count": 0,
+    })))
+}

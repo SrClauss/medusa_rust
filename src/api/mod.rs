@@ -54,9 +54,21 @@ async fn wizard_import(
 
     // Spawn background task — replace with Apalis dispatch for persistent queue.
     let db = state.db.clone();
+    let storage = state.storage.clone();
     tokio::spawn(async move {
-        if let Err(e) = crate::wizard::zip_import::run_import_job(&job, &db).await {
-            tracing::error!(job_id = %job.job_id, "Import failed: {}", e);
+        match crate::wizard::zip_import::run_import_job(&job, &db, Some(&storage)).await {
+            Ok(summary) => {
+                tracing::info!(
+                    job_id = %job.job_id,
+                    created_products = summary.created_products,
+                    created_variants = summary.created_variants,
+                    uploaded_assets = summary.uploaded_assets,
+                    "Import completed successfully."
+                );
+            }
+            Err(e) => {
+                tracing::error!(job_id = %job.job_id, "Import failed: {}", e);
+            }
         }
     });
 
