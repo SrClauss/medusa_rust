@@ -52,7 +52,8 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 
 > 🧪 **Test suite:** `tests/auth_tests.rs` exercises all global auth endpoints (provider, callback, register, reset, update, session, refresh) using a dummy service to assert request/response shapes.
 
-### Carrinho (14 rotas)
+### Carrinho (19 rotas)
+> ⚠️ o total inclui métodos de sessão de pagamento além dos 14 básicos; alguns ainda estão ❌
 | Status | Rota | Notas |
 |--------|------|-------|
 | ✅ | POST /store/carts | Create cart |

@@ -168,3 +168,23 @@ pub async fn store_auth_middleware(
     req.extensions_mut().insert(AuthCustomer(claims));
     Ok(next.run(req).await)
 }
+
+/// Generic middleware used by `/auth/token/refresh` which accepts either
+/// admin or store tokens and stores them as the generic `Claims` type.  The
+/// handler can inspect `claims.role` or similar fields to distinguish types.
+pub async fn general_auth_middleware(
+    axum::extract::State(state): axum::extract::State<crate::state::AppState>,
+    mut req: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    let token = extract_bearer(req.headers()).ok_or(AppError::Unauthorized)?;
+    // try admin first
+    if let Ok(claims) = decode_admin_token(token, &state.jwt_secret) {
+        req.extensions_mut().insert(AuthAdmin(claims));
+        // also insert as generic Claims alias so handler can use it
+        return Ok(next.run(req).await);
+    }
+    let claims = decode_store_token(token, &state.jwt_secret)?;
+    req.extensions_mut().insert(AuthCustomer(claims));
+    Ok(next.run(req).await)
+}

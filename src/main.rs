@@ -14,6 +14,7 @@ use std::sync::Arc;
 use moka::future::Cache;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use state::{AppState, StorageConfig};
+use crate::api::auth::EmailPasswordService;
 use storage::{cache::build_cache, db::create_pool, s3::S3Storage};
 
 #[tokio::main]
@@ -53,12 +54,15 @@ async fn main() -> anyhow::Result<()> {
     let cache: Cache<String, serde_json::Value> = build_cache(max_capacity, ttl_secs);
 
     // ── AppState ──────────────────────────────────────────────────────────────
+    let auth_service = crate::api::auth::EmailPasswordService::new(pool.clone());
+
     let state = AppState {
         db:             Arc::new(pool),
         cache:          Arc::new(cache),
         storage:        Arc::new(s3),
         storage_config: Arc::new(storage_config),
         jwt_secret,
+        auth_service:   Arc::new(auth_service),
         payment_methods: Arc::new(tokio::sync::Mutex::new(Vec::new())),
     };
 

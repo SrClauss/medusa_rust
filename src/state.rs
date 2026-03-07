@@ -108,6 +108,9 @@ pub struct AppState {
     /// Secret used to sign and verify JWT tokens.
     pub jwt_secret: String,
 
+    /// Authentication service used by `/auth` endpoints.
+    pub auth_service: Arc<dyn crate::api::auth::AuthService>,
+
     /// In-memory store for payment methods created via the storefront API.
     ///
     /// The real Medusa backend persists these to the database and also
