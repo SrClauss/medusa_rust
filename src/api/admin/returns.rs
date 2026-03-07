@@ -91,3 +91,100 @@ pub async fn receive(
     .ok_or_else(|| AppError::NotFound("Return not found".into()))?;
     Ok(Json(serde_json::json!({ "return": build_return(&r) })))
 }
+
+pub async fn get(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let r = sqlx::query(
+        "SELECT id, status, refund_amount, order_id, swap_id, received_at, metadata, \
+         created_at, updated_at FROM returns WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&*state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Return not found".into()))?;
+    Ok(Json(serde_json::json!({ "return": build_return(&r) })))
+}
+
+pub async fn cancel(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let r = sqlx::query(
+        "UPDATE returns SET status = 'canceled', updated_at = NOW() \
+         WHERE id = $1 \
+         RETURNING id, status, refund_amount, order_id, swap_id, received_at, metadata, \
+         created_at, updated_at",
+    )
+    .bind(id)
+    .fetch_optional(&*state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Return not found".into()))?;
+    Ok(Json(serde_json::json!({ "return": build_return(&r) })))
+}
+
+pub async fn receive_items(
+    State(_): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({
+        "return": {
+            "id": id,
+            "status": "requires_action",
+            "items": [],
+        }
+    })))
+}
+
+pub async fn confirm_receive(
+    State(_): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({
+        "return": {
+            "id": id,
+            "status": "received",
+        }
+    })))
+}
+
+pub async fn request(
+    State(_): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({
+        "return": {
+            "id": id,
+            "status": "requested",
+        }
+    })))
+}
+
+pub async fn add_shipping_method(
+    State(_): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({
+        "return": {
+            "id": id,
+            "shipping_methods": [],
+        }
+    })))
+}
+
+pub async fn dismiss_items(
+    State(_): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({
+        "return": {
+            "id": id,
+            "items": [],
+        }
+    })))
+}

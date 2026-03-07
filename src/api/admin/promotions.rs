@@ -187,3 +187,23 @@ pub async fn remove_rules(
     }
     get(axum::extract::State(state), axum::extract::Path(id)).await
 }
+
+pub async fn batch_buy_rules(
+    State(_): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({
+        "promotion": { "id": id, "buy_rules": [] }
+    })))
+}
+
+pub async fn batch_target_rules(
+    State(_): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({
+        "promotion": { "id": id, "target_rules": [] }
+    })))
+}
