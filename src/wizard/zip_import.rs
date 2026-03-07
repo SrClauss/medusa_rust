@@ -129,9 +129,13 @@ pub struct ImportError {
 
 /// Run the full import pipeline inside a single PostgreSQL transaction.
 /// Called from a background task (tokio::spawn or Apalis worker).
+///
+/// If `storage` is provided, asset files from the `assets/` folder inside the
+/// zip are uploaded to the object store (MinIO / S3) after the DB commit.
 pub async fn run_import_job(
     job: &ImportJob,
     db: &PgPool,
+    storage: Option<&Arc<dyn StorageBackend>>,
 ) -> Result<ImportSummary, AppError> {
     info!(job_id = %job.job_id, "Starting import job.");
 
@@ -248,11 +252,18 @@ pub async fn run_import_job(
     tx.commit().await?;
     info!(job_id = %job.job_id, created_products, created_variants, "Import committed.");
 
+    // ── 5. Upload assets to object store ───────────────────────────────────
+    let uploaded_assets = if let Some(store) = storage {
+        upload_assets(assets, store).await
+    } else {
+        assets.len() // report count even without upload when no storage configured
+    };
+
     Ok(ImportSummary {
         job_id: job.job_id,
         created_products,
         created_variants,
-        uploaded_assets: assets.len(),
+        uploaded_assets,
         errors: import_errors,
     })
 }

@@ -208,19 +208,19 @@ pub async fn batch_target_rules(
     })))
 }
 
-/// GET /admin/promotions/{id}/buy-rules — list buy rules for a promotion.
-pub async fn list_buy_rules(
-    State(state): State<AppState>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+/// Shared helper: fetch all promotion_rules rows for a promotion and serialise them.
+async fn fetch_promotion_rules(
+    state: &AppState,
+    promotion_id: Uuid,
+) -> Result<Vec<serde_json::Value>, AppError> {
     let rows = sqlx::query(
         "SELECT id, promotion_id, attribute, operator, created_at, updated_at \
          FROM promotion_rules WHERE promotion_id = $1",
     )
-    .bind(id)
+    .bind(promotion_id)
     .fetch_all(&*state.db)
     .await?;
-    let rules: Vec<_> = rows
+    Ok(rows
         .iter()
         .map(|r| {
             serde_json::json!({
@@ -232,7 +232,15 @@ pub async fn list_buy_rules(
                 "updated_at": r.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
             })
         })
-        .collect();
+        .collect())
+}
+
+/// GET /admin/promotions/{id}/buy-rules — list buy rules for a promotion.
+pub async fn list_buy_rules(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let rules = fetch_promotion_rules(&state, id).await?;
     let count = rules.len() as i64;
     Ok(Json(serde_json::json!({ "rules": rules, "count": count })))
 }
@@ -242,26 +250,7 @@ pub async fn list_target_rules(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let rows = sqlx::query(
-        "SELECT id, promotion_id, attribute, operator, created_at, updated_at \
-         FROM promotion_rules WHERE promotion_id = $1",
-    )
-    .bind(id)
-    .fetch_all(&*state.db)
-    .await?;
-    let rules: Vec<_> = rows
-        .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<Uuid, _>("id"),
-                "promotion_id": r.get::<Uuid, _>("promotion_id"),
-                "attribute": r.get::<String, _>("attribute"),
-                "operator": r.get::<String, _>("operator"),
-                "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-                "updated_at": r.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
-            })
-        })
-        .collect();
+    let rules = fetch_promotion_rules(&state, id).await?;
     let count = rules.len() as i64;
     Ok(Json(serde_json::json!({ "rules": rules, "count": count })))
 }

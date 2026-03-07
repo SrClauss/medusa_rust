@@ -610,7 +610,7 @@ fn test_slugify_basic() {
 
 #[test]
 fn test_slugify_accents() {
-    // accented characters should be normalised / stripped
+    // accented characters should be normalized / stripped
     let slug = medusa_rust::wizard::slugify("Café Açaí");
     assert!(!slug.contains(' '), "slug should not contain spaces");
     assert_eq!(slug, slug.to_lowercase(), "slug should be lowercase");
