@@ -235,8 +235,29 @@ pub async fn delete_item_change(
 
 pub async fn update_line_item(
     State(state): State<AppState>,
-    Path((oe_id, _item_id)): Path<(Uuid, Uuid)>,
-    Json(_payload): Json<serde_json::Value>,
+    Path((oe_id, item_id)): Path<(Uuid, Uuid)>,
+    Json(payload): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // Update the line item referenced by this order edit change
+    if let Some(qty) = payload.get("quantity").and_then(|v| v.as_i64()) {
+        sqlx::query(
+            "UPDATE line_items SET quantity = $2, updated_at = NOW() \
+             WHERE id = (SELECT line_item_id FROM order_item_changes WHERE id = $1 LIMIT 1)",
+        )
+        .bind(item_id)
+        .bind(qty as i32)
+        .execute(&*state.db)
+        .await?;
+    }
+    // Update the change metadata if provided
+    if let Some(meta) = payload.get("metadata") {
+        sqlx::query(
+            "UPDATE order_item_changes SET metadata = $2, updated_at = NOW() WHERE id = $1",
+        )
+        .bind(item_id)
+        .bind(meta.clone())
+        .execute(&*state.db)
+        .await?;
+    }
     get(axum::extract::State(state), axum::extract::Path(oe_id)).await
 }

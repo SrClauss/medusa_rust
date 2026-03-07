@@ -31,8 +31,8 @@ fn invite_json(r: &sqlx::postgres::PgRow) -> serde_json::Value {
 
 fn generate_invite_token() -> String {
     use rand::Rng;
-    let rng = rand::thread_rng();
-    rng.sample_iter(&rand::distributions::Alphanumeric)
+    rand::thread_rng()
+        .sample_iter(&rand::distributions::Alphanumeric)
         .take(32)
         .map(char::from)
         .collect()

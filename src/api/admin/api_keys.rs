@@ -31,8 +31,7 @@ fn ak_json(r: &sqlx::postgres::PgRow) -> serde_json::Value {
 
 fn generate_token() -> String {
     use rand::Rng;
-    let rng = rand::thread_rng();
-    let token: String = rng
+    let token: String = rand::thread_rng()
         .sample_iter(&rand::distributions::Alphanumeric)
         .take(64)
         .map(char::from)

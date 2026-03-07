@@ -467,3 +467,174 @@ fn test_store_shipping_option_calculate_routes() {
         assert_ne!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     });
 }
+
+// ─── Order Edits ──────────────────────────────────────────────────────────────
+
+#[test]
+fn test_order_edits_list_requires_auth() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let app = app();
+        let req = Request::builder().method("GET").uri("/admin/order-edits").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    });
+}
+
+#[test]
+fn test_order_edits_list_with_auth() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let app = app();
+        let token = admin_token();
+        let req = Request::builder().method("GET").uri("/admin/order-edits").header("authorization", format!("Bearer {}", token)).body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_ne!(resp.status(), StatusCode::UNAUTHORIZED);
+        assert_ne!(resp.status(), StatusCode::NOT_FOUND);
+    });
+}
+
+#[test]
+fn test_order_edits_action_routes() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let app = app();
+        let token = admin_token();
+        let id = uuid::Uuid::new_v4();
+        for action in ["request", "confirm", "decline", "cancel"] {
+            let req = Request::builder()
+                .method("POST")
+                .uri(format!("/admin/order-edits/{}/{}", id, action))
+                .header("authorization", format!("Bearer {}", token))
+                .header("content-type", "application/json")
+                .body(Body::from(json!({}).to_string()))
+                .unwrap();
+            let resp = app.clone().oneshot(req).await.unwrap();
+            assert_ne!(resp.status(), StatusCode::NOT_FOUND, "route /admin/order-edits/{}/{} not found", id, action);
+            assert_ne!(resp.status(), StatusCode::UNAUTHORIZED);
+        }
+    });
+}
+
+// ─── Promotions ───────────────────────────────────────────────────────────────
+
+#[test]
+fn test_promotions_list_requires_auth() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let app = app();
+        let req = Request::builder().method("GET").uri("/admin/promotions").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    });
+}
+
+#[test]
+fn test_promotions_list_with_auth() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let app = app();
+        let token = admin_token();
+        let req = Request::builder().method("GET").uri("/admin/promotions").header("authorization", format!("Bearer {}", token)).body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_ne!(resp.status(), StatusCode::UNAUTHORIZED);
+        assert_ne!(resp.status(), StatusCode::NOT_FOUND);
+    });
+}
+
+#[test]
+fn test_promotions_create_routes() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let app = app();
+        let token = admin_token();
+        let req = Request::builder()
+            .method("POST")
+            .uri("/admin/promotions")
+            .header("authorization", format!("Bearer {}", token))
+            .header("content-type", "application/json")
+            .body(Body::from(json!({"code":"PROMO10","type":"standard"}).to_string()))
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_ne!(resp.status(), StatusCode::NOT_FOUND);
+        assert_ne!(resp.status(), StatusCode::UNAUTHORIZED);
+    });
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+#[test]
+fn test_notifications_list_requires_auth() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let app = app();
+        let req = Request::builder().method("GET").uri("/admin/notifications").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    });
+}
+
+#[test]
+fn test_notifications_list_with_auth() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let app = app();
+        let token = admin_token();
+        let req = Request::builder().method("GET").uri("/admin/notifications").header("authorization", format!("Bearer {}", token)).body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_ne!(resp.status(), StatusCode::UNAUTHORIZED);
+        assert_ne!(resp.status(), StatusCode::NOT_FOUND);
+    });
+}
+
+// ─── Draft Orders (DB-backed) ─────────────────────────────────────────────────
+
+#[test]
+fn test_draft_orders_list_requires_auth() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let app = app();
+        let req = Request::builder().method("GET").uri("/admin/draft-orders").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    });
+}
+
+#[test]
+fn test_draft_orders_list_with_auth() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let app = app();
+        let token = admin_token();
+        let req = Request::builder().method("GET").uri("/admin/draft-orders").header("authorization", format!("Bearer {}", token)).body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_ne!(resp.status(), StatusCode::UNAUTHORIZED);
+        assert_ne!(resp.status(), StatusCode::NOT_FOUND);
+    });
+}
+
+// ─── Batch Jobs (DB-backed) ───────────────────────────────────────────────────
+
+#[test]
+fn test_batch_jobs_list_requires_auth() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let app = app();
+        let req = Request::builder().method("GET").uri("/admin/batch-jobs").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    });
+}
+
+#[test]
+fn test_batch_jobs_list_with_auth() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let app = app();
+        let token = admin_token();
+        let req = Request::builder().method("GET").uri("/admin/batch-jobs").header("authorization", format!("Bearer {}", token)).body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_ne!(resp.status(), StatusCode::UNAUTHORIZED);
+        assert_ne!(resp.status(), StatusCode::NOT_FOUND);
+    });
+}

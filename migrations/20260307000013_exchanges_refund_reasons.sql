@@ -36,8 +36,8 @@ CREATE TABLE IF NOT EXISTS refund_reasons (
 );
 
 INSERT INTO refund_reasons (id, label, description) VALUES
-    (uuid_generate_v4(), 'Duplicate',     'Item was ordered twice'),
-    (uuid_generate_v4(), 'Fraudulent',    'Unauthorized transaction'),
+    (uuid_generate_v4(), 'Duplicate',        'Item was ordered twice'),
+    (uuid_generate_v4(), 'Fraudulent',       'Unauthorized transaction'),
     (uuid_generate_v4(), 'Customer Request', 'Customer changed mind'),
-    (uuid_generate_v4(), 'Other',         'Other reason')
+    (uuid_generate_v4(), 'Other',            'Other reason')
 ON CONFLICT DO NOTHING;
