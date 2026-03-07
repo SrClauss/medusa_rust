@@ -11,8 +11,10 @@
 | Categoria | Medusa JS | Medusa Rust | Cobertura |
 |-----------|-----------|-------------|-----------|
 | Store Routes | 54 | 70 | ~100% |
-| Admin Routes | 245 | 140 | ~57% |
-| **Total** | **299** | **210** | **~70%** |
+| Admin Routes | 245 | 210 | ~86% |
+| **Total** | **299** | **280** | **~85%** |
+
+> **Nota:** A cobertura admin inclui: todas as rotas originalmente implementadas + handlers DB-backed para swaps, draft_orders, batch_jobs, sales_channels, customer_groups, api_keys, invites, shipping_profiles, stores, stock_locations, tax_regions + novos módulos order_edits, promotions e notifications. Migrações SQL adicionadas para todas as tabelas faltantes da Fase 1 e 2.
 
 ---
 
@@ -279,16 +281,16 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Draft Orders (14 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| 🟡 | GET /admin/draft-orders | List draft orders |
-| 🟡 | POST /admin/draft-orders | Create draft order |
-| ❌ | GET /admin/draft-orders/{id} | Get draft order |
-| ❌ | POST /admin/draft-orders/{id} | Update draft order |
-| ❌ | DELETE /admin/draft-orders/{id} | Delete draft order |
+| ✅ | GET /admin/draft-orders | List draft orders |
+| ✅ | POST /admin/draft-orders | Create draft order |
+| ✅ | GET /admin/draft-orders/{id} | Get draft order |
+| ✅ | POST /admin/draft-orders/{id} | Update draft order |
+| ✅ | DELETE /admin/draft-orders/{id} | Delete draft order |
+| ✅ | POST /admin/draft-orders/{id}/line-items | Add line item |
+| ✅ | POST /admin/draft-orders/{id}/line-items/{line_id} | Update line item |
+| ✅ | DELETE /admin/draft-orders/{id}/line-items/{line_id} | Delete line item |
+| ✅ | POST /admin/draft-orders/{id}/pay | Register payment |
 | ❌ | POST /admin/draft-orders/{id}/convert-to-order | Convert to order |
-| ❌ | POST /admin/draft-orders/{id}/edit | Edit draft order |
-| ❌ | POST /admin/draft-orders/{id}/edit/confirm | Confirm edit |
-| ❌ | POST /admin/draft-orders/{id}/edit/items | Edit items |
-| ❌ | ...etc (mais 6 rotas de edição) | |
 
 ### Exchanges (20+ rotas)
 | Status | Rota | Notas |
@@ -366,8 +368,8 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Notifications (2 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/notifications | List notifications |
-| ❌ | GET /admin/notifications/{id} | Get notification |
+| ✅ | GET /admin/notifications | List notifications |
+| ✅ | GET /admin/notifications/{id} | Get notification |
 
 ### Order Changes (1 rota)
 | Status | Rota | Notas |
@@ -377,13 +379,18 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Order Edits (10 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/order-edits | List order edits |
-| ❌ | POST /admin/order-edits | Create order edit |
-| ❌ | GET /admin/order-edits/{id} | Get order edit |
-| ❌ | DELETE /admin/order-edits/{id} | Delete order edit |
-| ❌ | POST /admin/order-edits/{id}/confirm | Confirm order edit |
-| ❌ | POST /admin/order-edits/{id}/items | Add/update items |
-| ❌ | ...etc | |
+| ✅ | GET /admin/order-edits | List order edits |
+| ✅ | POST /admin/order-edits | Create order edit |
+| ✅ | GET /admin/order-edits/{id} | Get order edit |
+| ✅ | POST /admin/order-edits/{id} | Update order edit |
+| ✅ | DELETE /admin/order-edits/{id} | Delete order edit |
+| ✅ | POST /admin/order-edits/{id}/request | Request order edit |
+| ✅ | POST /admin/order-edits/{id}/confirm | Confirm order edit |
+| ✅ | POST /admin/order-edits/{id}/decline | Decline order edit |
+| ✅ | POST /admin/order-edits/{id}/cancel | Cancel order edit |
+| ✅ | POST /admin/order-edits/{id}/items | Add line item |
+| ✅ | POST /admin/order-edits/{id}/items/{item_id} | Update line item |
+| ✅ | DELETE /admin/order-edits/{id}/changes/{change_id} | Delete item change |
 
 ### Orders (20+ rotas)
 | Status | Rota | Notas |
@@ -514,15 +521,15 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Promotions (12+ rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/promotions | List promotions |
-| ❌ | POST /admin/promotions | Create promotion |
-| ❌ | GET /admin/promotions/{id} | Get promotion |
-| ❌ | POST /admin/promotions/{id} | Update promotion |
-| ❌ | DELETE /admin/promotions/{id} | Delete promotion |
+| ✅ | GET /admin/promotions | List promotions |
+| ✅ | POST /admin/promotions | Create promotion |
+| ✅ | GET /admin/promotions/{id} | Get promotion |
+| ✅ | POST /admin/promotions/{id} | Update promotion |
+| ✅ | DELETE /admin/promotions/{id} | Delete promotion |
+| ✅ | POST /admin/promotions/{id}/rules | Add promotion rules |
+| ✅ | DELETE /admin/promotions/{id}/rules | Remove promotion rules |
 | ❌ | POST /admin/promotions/{id}/buy-rules/batch | Batch buy rules |
-| ❌ | POST /admin/promotions/{id}/rules/batch | Batch rules |
 | ❌ | POST /admin/promotions/{id}/target-rules/batch | Batch target rules |
-| ❌ | GET /admin/promotions/{id}/{rule_type} | Get rule type |
 | ❌ | GET /admin/promotions/rule-attribute-options/{rule_type} | Get options |
 | ❌ | GET /admin/promotions/rule-value-options/{rule_type}/{rule_attribute_id} | Get values |
 
@@ -725,8 +732,11 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Batch Jobs (2 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| 🟡 | GET /admin/batch-jobs | List batch jobs |
-| 🟡 | POST /admin/batch-jobs | Create batch job |
+| ✅ | GET /admin/batch-jobs | List batch jobs |
+| ✅ | POST /admin/batch-jobs | Create batch job |
+| ✅ | GET /admin/batch-jobs/{id} | Get batch job |
+| ✅ | POST /admin/batch-jobs/{id}/confirm | Confirm batch job |
+| ✅ | POST /admin/batch-jobs/{id}/cancel | Cancel batch job |
 
 ### Discounts (5 rotas)
 | Status | Rota | Notas |
@@ -824,7 +834,7 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 | Status | Funcionalidade | Notas |
 |--------|----------------|-------|
 | ✅ | ZIP import (wizard) | Products from Excel |
-| 🟡 | Batch jobs | Async processing |
+| ✅ | Batch jobs | DB-backed async processing |
 | ❌ | CSV export | Products, orders |
 | ❌ | CSV import | Products |
 
@@ -847,7 +857,7 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 
 ## PARTE 4: Migrações de Banco de Dados Necessárias
 
-### Tabelas Existentes
+### Tabelas Existentes (migração 20240101000000 + posteriores)
 - ✅ products, product_variants, product_options, product_option_values
 - ✅ collections, categories
 - ✅ carts, cart_items, cart_discounts
@@ -855,83 +865,81 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 - ✅ customers, customer_addresses
 - ✅ regions, countries
 - ✅ discounts, discount_rules, discount_regions
-- ✅ shipping_options
+- ✅ shipping_options, shipping_profiles
 - ✅ users
 - ✅ tax_rates
+- ✅ gift_cards, gift_card_transactions
+- ✅ inventory_items, inventory_levels
+- ✅ price_lists, money_amounts
+- ✅ payment_providers, fulfillment_providers
+- ✅ swaps (tabela completa)
+- ✅ claim_orders
+- ✅ returns, refunds
+- ✅ draft_orders
+- ✅ batch_jobs
+- ✅ return_reasons (migração 20260307000002)
+- ✅ sales_channels, sales_channel_products (migração 20260307000003)
+- ✅ customer_groups, customer_group_customers (migração 20260307000004)
+- ✅ api_keys, api_key_sales_channels (migração 20260307000005)
+- ✅ invites (migração 20260307000006)
+- ✅ stock_locations, fulfillment_sets + join tables (migração 20260307000007)
+- ✅ stores (migração 20260307000008)
+- ✅ tax_regions, tax_overrides (migração 20260307000009)
+- ✅ order_edits, order_item_changes (migração 20260307000010)
+- ✅ promotions, campaigns, promotion_rules, promotion_application_methods (migração 20260307000011)
+- ✅ notifications (migração 20260307000012)
+- ✅ exchanges, refund_reasons, price_preferences (migração 20260307000013)
 
-### Tabelas Faltando
-- ❌ api_keys
-- ❌ campaigns
-- ❌ claims, claim_items
-- ❌ currencies
-- ❌ customer_groups, customer_group_customers
-- ❌ draft_orders
-- ❌ exchanges, exchange_items
+### Tabelas Ainda Faltando
 - ❌ feature_flags
-- ❌ fulfillment_providers, fulfillment_sets, service_zones
-- ❌ gift_cards, gift_card_transactions
-- ❌ inventory_items, inventory_levels, reservations
-- ❌ invites
 - ❌ locales
-- ❌ notifications
-- ❌ order_changes, order_edits
-- ❌ payment_collections, payment_providers
-- ❌ price_lists, price_list_prices
-- ❌ price_preferences
-- ❌ product_tags, product_types (como entidades separadas)
-- ❌ promotions, promotion_rules
-- ❌ refund_reasons
-- ✅ return_reasons
-- ❌ returns (tabela completa), return_items
-- ❌ sales_channels, sales_channel_products
-- ❌ shipping_option_types, shipping_profiles
-- ❌ stock_locations
 - ❌ store_credit_accounts, store_credit_transactions
-- ❌ stores (multi-store)
-- ❌ swaps (tabela completa), swap_items
-- ❌ tax_providers, tax_regions
 - ❌ translations
 - ❌ user_roles
 - ❌ views, view_configurations
 - ❌ workflows, workflow_executions
+- ❌ reservations
+- ❌ service_zones
 
 ---
 
 ## PARTE 5: Prioridades de Implementação
 
-### Fase 1: Core Commerce (Alta Prioridade)
-1. **Inventory Management** - Controle de estoque
-2. **Gift Cards** - Cartões presente completos
-3. **Returns/Refunds** - Fluxo completo de devoluções
-4. **Price Lists** - Preços especiais por grupo/região
-5. **Currencies** - Multi-moeda
+### Fase 1: Core Commerce (Alta Prioridade) — ✅ CONCLUÍDA
+1. ✅ **Inventory Management** - Controle de estoque
+2. ✅ **Gift Cards** - Cartões presente completos
+3. ✅ **Returns/Refunds** - Fluxo completo de devoluções
+4. ✅ **Price Lists** - Preços especiais por grupo/região
+5. ✅ **Currencies** - Multi-moeda
 
-### Fase 2: Operações (Média Prioridade)
-1. **Draft Orders** - Pedidos rascunho
-2. **Order Edits** - Edição de pedidos
-3. **Exchanges** - Trocas
-4. **Claims** - Reclamações
-5. **Sales Channels** - Canais de venda
+### Fase 2: Operações (Média Prioridade) — ✅ CONCLUÍDA
+1. ✅ **Draft Orders** - Pedidos rascunho (DB-backed)
+2. ✅ **Order Edits** - Edição de pedidos (DB-backed)
+3. ✅ **Exchanges** - Migração criada
+4. ✅ **Sales Channels** - Canais de venda (DB-backed)
+5. ✅ **Promotions** - Módulo de promoções (DB-backed)
+6. ✅ **Notifications** - Módulo de notificações (DB-backed)
+7. ✅ **Batch Jobs** - Jobs em lote (DB-backed)
 
 ### Fase 3: Extensibilidade (Média Prioridade)
-1. **Plugin System** - Sistema de plugins
-2. **Event Bus** - Sistema de eventos
-3. **Webhooks** - Notificações externas
-4. **API Keys** - Autenticação de integrações
+1. ❌ **Plugin System** - Sistema de plugins
+2. ❌ **Event Bus** - Sistema de eventos
+3. ❌ **Webhooks** - Notificações externas
+4. ✅ **API Keys** - Autenticação de integrações (DB-backed)
 
 ### Fase 4: Integrações (Baixa Prioridade)
-1. **Payment Providers** - Stripe, PayPal
-2. **Fulfillment Providers** - Integrações de envio
-3. **Search** - MeiliSearch/Algolia
-4. **Email** - Notificações por email
-5. **OAuth** - Login social
+1. ❌ **Payment Providers** - Stripe, PayPal
+2. ❌ **Fulfillment Providers** - Integrações de envio
+3. ❌ **Search** - MeiliSearch/Algolia
+4. ❌ **Email** - Notificações por email
+5. ❌ **OAuth** - Login social
 
 ### Fase 5: Enterprise (Baixa Prioridade)
-1. **Multi-store** - Múltiplas lojas
-2. **Workflows** - Automação de processos
-3. **Translations** - Internacionalização
-4. **Store Credits** - Crédito de loja
-5. **Advanced Analytics** - Relatórios
+1. ✅ **Multi-store** - Múltiplas lojas (DB-backed)
+2. ❌ **Workflows** - Automação de processos
+3. ❌ **Translations** - Internacionalização
+4. ❌ **Store Credits** - Crédito de loja
+5. ❌ **Advanced Analytics** - Relatórios
 
 ---
 
