@@ -10,6 +10,5 @@ pub mod excel;
 pub mod slugify;
 pub mod zip_import;
 
-pub use excel::{ImportRow, SheetData};
 pub use slugify::slugify;
-pub use zip_import::{run_import_job, ImportJob};
+// pub use zip_import::run_import_job;      // unused by the rest of codebase

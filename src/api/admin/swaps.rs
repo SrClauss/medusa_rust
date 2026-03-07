@@ -1,3 +1,4 @@
+#![allow(unused_variables)]
 //! Admin swaps handlers — placeholder forwarding to full implementation
 use axum::{extract::{Path, Query, State}, http::StatusCode, Json};
 use serde::Deserialize;

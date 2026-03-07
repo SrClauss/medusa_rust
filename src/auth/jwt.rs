@@ -1,4 +1,5 @@
 //! JWT encode / decode and Axum extractor middleware.
+#![allow(unused_imports)]
 
 use axum::{
     extract::{FromRequestParts, Request},

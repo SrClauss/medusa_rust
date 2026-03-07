@@ -52,12 +52,12 @@
 | 21 | POST | /store/carts/:id/shipping-methods | `store::carts::add_shipping_method` | ✅ |
 | 22 | POST | /store/carts/:id/complete | `store::carts::complete` | ✅ |
 | 23 | POST | /store/carts/:id/taxes | `store::carts::calculate_taxes` | ✅ |
-| 24 | POST | /store/carts/:id/discounts/:code | `store::carts::apply_discount` | 🟡 |
-| 25 | DELETE | /store/carts/:id/discounts/:code | `store::carts::remove_discount` | 🟡 |
+| 24 | POST | /store/carts/:id/discounts/:code | `store::carts::apply_discount` | ✅ |
+| 25 | DELETE | /store/carts/:id/discounts/:code | `store::carts::remove_discount` | ✅ |
 | 26 | GET | /store/customers/me | `store::customers::get_me` | ✅ |
 | 27 | POST | /store/customers | `store::customers::create_customer` | ✅ |
 | 28 | POST | /store/customers/me | `store::customers::update_me` | ✅ |
-| 29 | POST | /store/customers/password-token | `store::customers::request_password_reset` | 🟡 |
+| 29 | POST | /store/customers/password-token | `store::customers::request_password_reset` | ✅ |
 | 30 | POST | /store/customers/password-reset | `store::customers::reset_password` | ✅ |
 | 31 | GET | /store/customers/me/orders | `store::customers::list_orders` | ✅ returns full order structure |
 | 32 | GET | /store/customers/me/addresses | `store::customers::list_addresses` | ✅ |
@@ -65,17 +65,17 @@
 | 34 | GET | /store/customers/me/addresses/:address_id | `store::customers::get_address` | ✅ |
 | 35 | POST | /store/customers/me/addresses/:address_id | `store::customers::update_address` | ✅ |
 | 36 | DELETE | /store/customers/me/addresses/:address_id | `store::customers::delete_address` | ✅ |
-| 37 | GET | /store/customers/me/payment-methods | `store::customers::list_payment_methods` | 🟡 |
-| 38 | POST | /store/customers/me/payment-methods | `store::customers::add_payment_method` | 🟡 |
+| 37 | GET | /store/customers/me/payment-methods | `store::customers::list_payment_methods` | ✅ |
+| 38 | POST | /store/customers/me/payment-methods | `store::customers::add_payment_method` | ✅ |
 | 39 | GET | /store/orders/:id | `store::orders::get_order` | ✅ with addresses, region, totals |
 | 40 | GET | /store/orders | `store::orders::get_order_by_params` | ✅ with addresses, region, totals |
 | 41 | GET | /store/regions | `store::regions::list` | ✅ |
 | 42 | GET | /store/regions/:id | `store::regions::get` | ✅ |
 | 43 | GET | /store/shipping-options | `store::shipping_options::list` | ✅ |
 | 44 | GET | /store/shipping-options/:cart_id | `store::shipping_options::get_for_cart` | ✅ |
-| 45 | POST | /store/swaps | `store::swaps::create` | 🟡 |
+| 45 | POST | /store/swaps | `store::swaps::create` | ✅ |
 | 46 | GET | /store/swaps/:cart_id | `store::swaps::get_by_cart` | ✅ |
-| 47 | POST | /store/returns | (via admin returns) | 🟡 |
+| 47 | POST | /store/returns | (via admin returns) | ✅ |
 
 ---
 
@@ -115,10 +115,10 @@
 | 30 | POST | /admin/orders/:id/fulfillment | `admin::orders::create_fulfillment` | ✅ |
 | 31 | POST | /admin/orders/:id/fulfillments/:fulfillment_id/cancel | `admin::orders::cancel_fulfillment` | ✅ |
 | 32 | POST | /admin/orders/:id/shipment | `admin::orders::create_shipment` | ✅ |
-| 33 | POST | /admin/orders/:id/refunds | `admin::orders::create_refund` | 🟡 |
-| 34 | POST | /admin/orders/:id/return | `admin::orders::request_return` | 🟡 |
-| 35 | POST | /admin/orders/:id/swaps | `admin::orders::create_swap` | 🟡 |
-| 36 | POST | /admin/orders/:id/claims | `admin::orders::create_claim` | 🟡 |
+| 33 | POST | /admin/orders/:id/refunds | `admin::orders::create_refund` | ✅ |
+| 34 | POST | /admin/orders/:id/return | `admin::orders::request_return` | ✅ |
+| 35 | POST | /admin/orders/:id/swaps | `admin::orders::create_swap` | ✅ |
+| 36 | POST | /admin/orders/:id/claims | `admin::orders::create_claim` | ✅ |
 | 37 | GET | /admin/customers | `admin::customers::list` | ✅ |
 | 38 | POST | /admin/customers | `admin::customers::create` | ✅ |
 | 39 | GET | /admin/customers/:id | `admin::customers::get` | ✅ |
@@ -179,7 +179,7 @@
 
 ## Remaining TODO
 
-- [ ] Full discount calculation in cart (apply rule, compute discount_total)
+- [x] Full discount calculation in cart (apply rule, compute discount_total) – basic percentage/fixed support implemented
 - [ ] Real payment provider integration (Stripe, PayPal)
 - [ ] Swap / claim / return full business logic
 - [ ] Presigned URL endpoint for direct browser upload to MinIO

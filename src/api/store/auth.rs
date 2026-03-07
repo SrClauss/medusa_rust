@@ -1,3 +1,4 @@
+#![allow(unused_imports, unused_variables)]
 //! Store auth handlers
 use axum::{extract::{Path, State}, Json};
 use serde::{Deserialize, Serialize};

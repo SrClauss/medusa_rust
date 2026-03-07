@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+#![allow(unused_parens)]
 //! Zip-import engine — extracts `import.xlsx` + `assets/` from a .zip,
 //! then persists products via SQLx and media via the `StorageBackend`.
 //!
@@ -46,7 +48,6 @@ pub struct ImportJob {
 }
 
 pub fn base64_encode(data: &[u8]) -> String {
-    use std::fmt::Write;
     // Simple base64 via the base64 crate that is already in the dep tree.
     // We use the standard alphabet used by the `base64` crate.
     base64_encode_impl(data)
@@ -60,7 +61,7 @@ fn base64_encode_impl(data: &[u8]) -> String {
         let b0 = chunk[0] as usize;
         let b1 = chunk.get(1).copied().unwrap_or(0) as usize;
         let b2 = chunk.get(2).copied().unwrap_or(0) as usize;
-        out.push(TABLE[(b0 >> 2)] as char);
+        out.push(TABLE[b0 >> 2] as char);
         out.push(TABLE[((b0 & 3) << 4) | (b1 >> 4)] as char);
         if chunk.len() > 1 { out.push(TABLE[((b1 & 0xf) << 2) | (b2 >> 6)] as char); } else { out.push('='); }
         if chunk.len() > 2 { out.push(TABLE[b2 & 0x3f] as char); } else { out.push('='); }
@@ -142,7 +143,7 @@ pub async fn run_import_job(
     let xlsx_bytes = extract_file_from_zip(&mut archive, "import.xlsx")?;
 
     // ── 2. Parse Excel ─────────────────────────────────────────────────────
-    let (products, variants, mut import_errors) = parse_excel(&xlsx_bytes);
+    let (products, variants, import_errors) = parse_excel(&xlsx_bytes);
 
     if !import_errors.is_empty() {
         return Err(AppError::BadRequest(format!(
@@ -296,7 +297,7 @@ fn extract_file_from_zip(archive: &mut ZipArchive<Cursor<Vec<u8>>>, name: &str) 
 }
 
 fn parse_excel(bytes: &[u8]) -> (Vec<ProductRow>, Vec<VariantRow>, Vec<ImportError>) {
-    use calamine::{open_workbook_from_rs, DataType, Reader, Xlsx};
+    use calamine::{open_workbook_from_rs, Reader, Xlsx};
 
     let mut products = Vec::new();
     let mut variants = Vec::new();

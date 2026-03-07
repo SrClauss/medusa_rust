@@ -1,4 +1,6 @@
 //! Admin draft_orders handlers — placeholder forwarding to full implementation
+#![allow(unused_variables)]
+
 use axum::{extract::{Path, Query, State}, http::StatusCode, Json};
 use serde::Deserialize;
 use uuid::Uuid;

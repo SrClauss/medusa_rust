@@ -1,4 +1,7 @@
+#![allow(unused_variables)]
+#![allow(unused_imports)]
 //! Admin returns handlers — placeholder forwarding to full implementation
+#![allow(unused_variables)]
 use axum::{extract::{Path, Query, State}, http::StatusCode, Json};
 use serde::Deserialize;
 use uuid::Uuid;

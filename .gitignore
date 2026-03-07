@@ -19,3 +19,6 @@ uploads/*
 
 # SQLx offline query cache (commit if using SQLX_OFFLINE=true)
 # .sqlx/
+
+# Third-party JS vendored code - don't track huge medusa_js repo
+vendor/medusa_js

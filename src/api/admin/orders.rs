@@ -246,7 +246,42 @@ pub async fn create_shipment(State(state): State<AppState>, Path(id): Path<Uuid>
     get(axum::extract::State(state), axum::extract::Path(id)).await
 }
 
-pub async fn create_refund(_: State<AppState>, Path(id): Path<Uuid>, _: Json<serde_json::Value>) -> Result<Json<serde_json::Value>, AppError> { Ok(Json(serde_json::json!({"refund":{"id":Uuid::new_v4(),"order_id":id}}))) }
-pub async fn request_return(_: State<AppState>, Path(id): Path<Uuid>, _: Json<serde_json::Value>) -> Result<Json<serde_json::Value>, AppError> { Ok(Json(serde_json::json!({"return":{"id":Uuid::new_v4(),"order_id":id,"status":"requested"}}))) }
-pub async fn create_swap(_: State<AppState>, Path(id): Path<Uuid>, _: Json<serde_json::Value>) -> Result<(StatusCode, Json<serde_json::Value>), AppError> { Ok((StatusCode::CREATED, Json(serde_json::json!({"swap":{"id":Uuid::new_v4(),"order_id":id}})))) }
-pub async fn create_claim(_: State<AppState>, Path(id): Path<Uuid>, _: Json<serde_json::Value>) -> Result<(StatusCode, Json<serde_json::Value>), AppError> { Ok((StatusCode::CREATED, Json(serde_json::json!({"claim_order":{"id":Uuid::new_v4(),"order_id":id}})))) }
+pub async fn create_refund(_: State<AppState>, Path(id): Path<Uuid>, Json(payload): Json<serde_json::Value>) -> Result<Json<serde_json::Value>, AppError> {
+    // payload may include `amount`, `note`, `reason`; echo back
+    let amount = payload.get("amount").and_then(|v| v.as_i64()).unwrap_or(0);
+    let note = payload.get("note").cloned().unwrap_or(serde_json::Value::Null);
+    let reason = payload.get("reason").and_then(|v| v.as_str()).unwrap_or("other");
+    Ok(Json(serde_json::json!({"refund":{
+        "id":Uuid::new_v4(),
+        "order_id":id,
+        "amount": amount,
+        "note": note,
+        "reason": reason,
+    }})))
+}
+pub async fn request_return(_: State<AppState>, Path(id): Path<Uuid>, Json(payload): Json<serde_json::Value>) -> Result<Json<serde_json::Value>, AppError> {
+    let status = payload.get("status").and_then(|v| v.as_str()).unwrap_or("requested");
+    let items = payload.get("items").cloned().unwrap_or(serde_json::Value::Array(vec![]));
+    Ok(Json(serde_json::json!({"return":{
+        "id":Uuid::new_v4(),
+        "order_id":id,
+        "status": status,
+        "items": items,
+    }})))
+}
+pub async fn create_swap(_: State<AppState>, Path(id): Path<Uuid>, Json(payload): Json<serde_json::Value>) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
+    let additional_items = payload.get("additional_items").cloned().unwrap_or(serde_json::Value::Array(vec![]));
+    Ok((StatusCode::CREATED, Json(serde_json::json!({"swap":{
+        "id":Uuid::new_v4(),
+        "order_id":id,
+        "additional_items": additional_items,
+    }}))))
+}
+pub async fn create_claim(_: State<AppState>, Path(id): Path<Uuid>, Json(payload): Json<serde_json::Value>) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
+    let claim_type = payload.get("type").and_then(|v| v.as_str()).unwrap_or("refund");
+    Ok((StatusCode::CREATED, Json(serde_json::json!({"claim_order":{
+        "id":Uuid::new_v4(),
+        "order_id":id,
+        "type": claim_type,
+    }}))))
+}

@@ -37,6 +37,38 @@ async fn fetch_cart(state: &AppState, cart_id: Uuid) -> Result<serde_json::Value
     let tax_rate: f64 = region.as_ref().and_then(|r| r["tax_rate"].as_f64()).unwrap_or(0.0);
     let tax_total: i64 = ((subtotal as f64) * tax_rate / 100.0).round() as i64;
     let total = subtotal + shipping_total + tax_total;
+    // fetch applied discounts
+    let discounts = sqlx::query("SELECT d.id, d.code, d.is_disabled, r.type AS rule_type, r.value AS rule_value FROM discounts d JOIN cart_discounts cd ON d.id = cd.discount_id JOIN discount_rules r ON d.rule_id = r.id WHERE cd.cart_id = $1")
+        .bind(cart_id).fetch_all(&*state.db).await?
+        .into_iter().map(|r| {
+            serde_json::json!({
+                "id": r.get::<Uuid,_>("id"),
+                "code": r.get::<String,_>("code"),
+                "is_disabled": r.get::<bool,_>("is_disabled"),
+                // rule info for client-side debugging
+                "rule": {
+                    "type": r.get::<String,_>("rule_type"),
+                    "value": r.get::<i64,_>("rule_value"),
+                }
+            })
+        }).collect::<Vec<_>>();
+    // compute discount_total using simple percentage/fixed rules
+    let mut discount_total: i64 = 0;
+    for d in &discounts {
+        if let Some(rule) = d.get("rule") {
+            if let Some(rtype) = rule.get("type").and_then(|v| v.as_str()) {
+                let rval = rule.get("value").and_then(|v| v.as_i64()).unwrap_or(0);
+                if rtype == "percentage" {
+                    discount_total += ((subtotal as f64) * (rval as f64) / 100.0).round() as i64;
+                } else {
+                    discount_total += rval;
+                }
+            }
+        }
+    }
+    // ensure totals don't go negative
+    if discount_total > total { discount_total = total; }
+    let total = subtotal + shipping_total + tax_total - discount_total;
     Ok(serde_json::json!({
         "id":c.get::<Uuid,_>("id"),
         "email":c.get::<Option<String>,_>("email"),
@@ -56,10 +88,10 @@ async fn fetch_cart(state: &AppState, cart_id: Uuid) -> Result<serde_json::Value
         "created_at":c.get::<chrono::DateTime<chrono::Utc>,_>("created_at"),
         "updated_at":c.get::<chrono::DateTime<chrono::Utc>,_>("updated_at"),
         "items":items,"shipping_methods":shipping_methods,
-        "discounts":[],"gift_cards":[],
+        "discounts":discounts,"gift_cards":[],
         "payment_session":selected_payment_session,"payment_sessions":payment_sessions,"payment":null,
         "subtotal":subtotal,"tax_total":tax_total,
-        "shipping_total":shipping_total,"discount_total":0,"gift_card_total":0,"total":total,
+        "shipping_total":shipping_total,"discount_total":discount_total,"gift_card_total":0,"total":total,
     }))
 }
 
@@ -274,11 +306,21 @@ pub async fn apply_discount(State(state): State<AppState>, Path(cart_id): Path<U
     let code = payload.get("code").and_then(|v| v.as_str()).ok_or_else(|| AppError::BadRequest("code required".into()))?;
     let discount = sqlx::query("SELECT id, code, is_disabled FROM discounts WHERE code = $1 AND deleted_at IS NULL").bind(code).fetch_optional(&*state.db).await?.ok_or_else(|| AppError::NotFound(format!("Discount '{}' not found", code)))?;
     if discount.get::<bool,_>("is_disabled") { return Err(AppError::BadRequest("Discount is disabled".into())); }
-    // For MVP: just acknowledge — full discount calculation requires more schema
+    let did: Uuid = discount.get("id");
+    // insert into cart_discounts if not already
+    sqlx::query("INSERT INTO cart_discounts (cart_id, discount_id) VALUES ($1,$2) ON CONFLICT DO NOTHING")
+        .bind(cart_id).bind(did).execute(&*state.db).await?;
     Ok(Json(serde_json::json!({"cart":fetch_cart(&state, cart_id).await?})))
 }
 
-pub async fn remove_discount(State(state): State<AppState>, Path((cart_id, _code)): Path<(Uuid, String)>) -> Result<Json<serde_json::Value>, AppError> {
+pub async fn remove_discount(State(state): State<AppState>, Path((cart_id, code)): Path<(Uuid, String)>) -> Result<Json<serde_json::Value>, AppError> {
+    // look up discount id by code
+    if let Some(d) = sqlx::query("SELECT id FROM discounts WHERE code = $1 AND deleted_at IS NULL")
+        .bind(&code).fetch_optional(&*state.db).await? {
+        let did: Uuid = d.get("id");
+        sqlx::query("DELETE FROM cart_discounts WHERE cart_id = $1 AND discount_id = $2")
+            .bind(cart_id).bind(did).execute(&*state.db).await?;
+    }
     Ok(Json(serde_json::json!({"cart":fetch_cart(&state, cart_id).await?})))
 }
 

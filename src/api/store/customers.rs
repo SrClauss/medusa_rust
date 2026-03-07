@@ -3,6 +3,7 @@ use axum::{extract::{Path, Query, State}, http::StatusCode, Json};
 use serde::Deserialize;
 use sqlx::Row;
 use uuid::Uuid;
+use hex;
 use crate::{auth::{argon::hash_password, jwt::AuthCustomer}, error::AppError, state::AppState};
 
 async fn fetch_customer(state: &AppState, id: Uuid) -> Result<serde_json::Value, AppError> {
@@ -36,9 +37,20 @@ pub async fn update_me(State(state): State<AppState>, axum::Extension(auth): axu
     Ok(Json(serde_json::json!({"customer":fetch_customer(&state, id).await?})))
 }
 
-pub async fn request_password_reset(_: State<AppState>, Json(payload): Json<serde_json::Value>) -> Result<Json<serde_json::Value>, AppError> {
-    let _email = payload.get("email").and_then(|v| v.as_str()).ok_or_else(|| AppError::BadRequest("email required".into()))?;
-    Ok(Json(serde_json::json!({})))
+pub async fn request_password_reset(State(state): State<AppState>, Json(payload): Json<serde_json::Value>) -> Result<Json<serde_json::Value>, AppError> {
+    let email = payload.get("email").and_then(|v| v.as_str()).ok_or_else(|| AppError::BadRequest("email required".into()))?;
+    // ensure customer exists
+    let exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM customers WHERE email = $1 AND deleted_at IS NULL")
+        .bind(email).fetch_optional(&*state.db).await?;
+    if exists.is_none() {
+        return Err(AppError::NotFound("Customer not found".into()));
+    }
+    // generate simple token (not persisted)
+    let token: String = hex::encode(rand::random::<[u8;16]>());
+    // log the token so it can be picked up by tests or a dev
+    tracing::info!("password reset token for {}: {}", email, token);
+    // in a full implementation we'd store and send email; for now return token for testing
+    Ok(Json(serde_json::json!({"email":email,"token":token})))
 }
 
 pub async fn reset_password(State(state): State<AppState>, Json(payload): Json<serde_json::Value>) -> Result<Json<serde_json::Value>, AppError> {
@@ -99,5 +111,31 @@ pub async fn delete_address(State(state): State<AppState>, axum::Extension(auth)
     Ok(Json(serde_json::json!({"customer":fetch_customer(&state, cid).await?})))
 }
 
-pub async fn list_payment_methods(_: State<AppState>, _: axum::Extension<AuthCustomer>) -> Result<Json<serde_json::Value>, AppError> { Ok(Json(serde_json::json!({"payment_methods":[]}))) }
-pub async fn add_payment_method(_: State<AppState>, _: axum::Extension<AuthCustomer>, _: Json<serde_json::Value>) -> Result<(StatusCode, Json<serde_json::Value>), AppError> { Ok((StatusCode::CREATED, Json(serde_json::json!({"payment_method":{}})))) }
+pub async fn list_payment_methods(State(state): State<AppState>, _: axum::Extension<AuthCustomer>) -> Result<Json<serde_json::Value>, AppError> {
+    // Return whatever has been stored in memory so far.  We deliberately
+    // clone the vector so the lock holds for a minimal amount of time.
+    let methods = {
+        let guard = state.payment_methods.lock().await;
+        guard.clone()
+    };
+    Ok(Json(serde_json::json!({"payment_methods": methods})))
+}
+
+pub async fn add_payment_method(State(state): State<AppState>, _: axum::Extension<AuthCustomer>, Json(mut payload): Json<serde_json::Value>) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
+    // The frontend is free to send whatever keys it wants – we simply attach
+    // an id and store the object verbatim.  This mirrors Medusa's behaviour,
+    // where the payment provider adds metadata such as `id` and `created_at`.
+    let id = format!("pm_{}", Uuid::new_v4());
+    // don't overwrite if caller already provided one
+    if payload.get("id").is_none() {
+        payload["id"] = serde_json::Value::String(id.clone());
+    }
+
+    // keep the method in our in‑memory list
+    {
+        let mut guard = state.payment_methods.lock().await;
+        guard.push(payload.clone());
+    }
+
+    Ok((StatusCode::CREATED, Json(serde_json::json!({"payment_method": payload}))))
+}

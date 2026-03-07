@@ -59,6 +59,7 @@ async fn main() -> anyhow::Result<()> {
         storage:        Arc::new(s3),
         storage_config: Arc::new(storage_config),
         jwt_secret,
+        payment_methods: Arc::new(tokio::sync::Mutex::new(Vec::new())),
     };
 
     // ── CORS ──────────────────────────────────────────────────────────────────

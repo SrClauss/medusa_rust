@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+#![allow(unused_variables)]
 //! Admin auth handlers — POST/GET/DELETE /admin/auth
 use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};

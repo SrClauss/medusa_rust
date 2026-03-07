@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 //! Authentication module — JWT middleware and Argon2 password hashing.
 
 pub mod argon;

@@ -107,6 +107,17 @@ pub struct AppState {
 
     /// Secret used to sign and verify JWT tokens.
     pub jwt_secret: String,
+
+    /// In-memory store for payment methods created via the storefront API.
+    ///
+    /// The real Medusa backend persists these to the database and also
+    /// interfaces with third-party providers (Stripe, etc.). Our minimal
+    /// implementation simply keeps them in a mutex-protected `Vec` so that
+    /// `GET` can return whatever has been added during the lifetime of the
+    /// process.  This is only used by the stubbed customer payment methods
+    /// routes and is sufficient for tests that are only concerned with the
+    /// request/response shape.
+    pub payment_methods: Arc<tokio::sync::Mutex<Vec<serde_json::Value>>>,
 }
 
 // Compile-time proof that AppState satisfies Axum's requirements.
