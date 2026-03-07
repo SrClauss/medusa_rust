@@ -338,3 +338,110 @@ pub const STORE_SHIPPING_OPTIONS_ID_CALCULATE: &str = "/store/shipping-options/{
 // ─── Wizard / Importer ────────────────────────────────────────────────────────
 pub const WIZARD_IMPORT: &str = "/wizard/import";
 pub const WIZARD_IMPORT_STATUS_ID: &str = "/wizard/import/{job_id}/status";
+
+// ─── Phase 1b: Price Preferences ─────────────────────────────────────────────
+pub const ADMIN_PRICE_PREFERENCES: &str = "/admin/price-preferences";
+pub const ADMIN_PRICE_PREFERENCES_ID: &str = "/admin/price-preferences/{id}";
+
+// ─── Phase 1c: Campaigns ─────────────────────────────────────────────────────
+pub const ADMIN_CAMPAIGNS: &str = "/admin/campaigns";
+pub const ADMIN_CAMPAIGNS_ID: &str = "/admin/campaigns/{id}";
+pub const ADMIN_CAMPAIGNS_ID_PROMOTIONS: &str = "/admin/campaigns/{id}/promotions";
+
+// Promotions extra rules
+pub const ADMIN_PROMOTIONS_ID_BUY_RULES_BATCH: &str = "/admin/promotions/{id}/buy-rules/batch";
+pub const ADMIN_PROMOTIONS_ID_TARGET_RULES_BATCH: &str = "/admin/promotions/{id}/target-rules/batch";
+pub const ADMIN_PROMOTIONS_RULE_ATTRIBUTE_OPTIONS: &str = "/admin/promotions/rule-attribute-options/{rule_type}";
+pub const ADMIN_PROMOTIONS_RULE_VALUE_OPTIONS: &str = "/admin/promotions/rule-value-options/{rule_type}/{rule_attribute_id}";
+
+// ─── Phase 1d: Fulfillment Sets ───────────────────────────────────────────────
+pub const ADMIN_FULFILLMENT_SETS_ID: &str = "/admin/fulfillment-sets/{id}";
+pub const ADMIN_FULFILLMENT_SETS_ID_SERVICE_ZONES: &str = "/admin/fulfillment-sets/{id}/service-zones";
+pub const ADMIN_FULFILLMENT_SETS_ID_SERVICE_ZONES_ID: &str = "/admin/fulfillment-sets/{id}/service-zones/{zone_id}";
+
+// ─── Phase 2b: Claims ─────────────────────────────────────────────────────────
+pub const ADMIN_CLAIMS: &str = "/admin/claims";
+pub const ADMIN_CLAIMS_ID: &str = "/admin/claims/{id}";
+pub const ADMIN_CLAIMS_ID_CANCEL: &str = "/admin/claims/{id}/cancel";
+pub const ADMIN_CLAIMS_ID_CONFIRM: &str = "/admin/claims/{id}/confirm";
+pub const ADMIN_CLAIMS_ID_REQUEST: &str = "/admin/claims/{id}/request";
+pub const ADMIN_CLAIMS_ID_OUTBOUND_ITEMS: &str = "/admin/claims/{id}/outbound/items";
+pub const ADMIN_CLAIMS_ID_INBOUND_ITEMS: &str = "/admin/claims/{id}/inbound/items";
+pub const ADMIN_CLAIMS_ID_SHIPPING_METHOD: &str = "/admin/claims/{id}/shipping-method";
+
+// ─── Phase 2c: Exchanges ──────────────────────────────────────────────────────
+pub const ADMIN_EXCHANGES: &str = "/admin/exchanges";
+pub const ADMIN_EXCHANGES_ID: &str = "/admin/exchanges/{id}";
+pub const ADMIN_EXCHANGES_ID_CANCEL: &str = "/admin/exchanges/{id}/cancel";
+pub const ADMIN_EXCHANGES_ID_CONFIRM: &str = "/admin/exchanges/{id}/confirm";
+pub const ADMIN_EXCHANGES_ID_REQUEST: &str = "/admin/exchanges/{id}/request";
+pub const ADMIN_EXCHANGES_ID_OUTBOUND_ITEMS: &str = "/admin/exchanges/{id}/outbound/items";
+pub const ADMIN_EXCHANGES_ID_INBOUND_ITEMS: &str = "/admin/exchanges/{id}/inbound/items";
+pub const ADMIN_EXCHANGES_ID_SHIPPING_METHOD: &str = "/admin/exchanges/{id}/shipping-method";
+
+// ─── Phase 2d: Returns (extended) ─────────────────────────────────────────────
+pub const ADMIN_RETURNS_ID: &str = "/admin/returns/{id}";
+pub const ADMIN_RETURNS_ID_CANCEL: &str = "/admin/returns/{id}/cancel";
+pub const ADMIN_RETURNS_ID_RECEIVE_ITEMS: &str = "/admin/returns/{id}/receive-items";
+pub const ADMIN_RETURNS_ID_RECEIVE_CONFIRM: &str = "/admin/returns/{id}/receive/confirm";
+pub const ADMIN_RETURNS_ID_REQUEST: &str = "/admin/returns/{id}/request";
+pub const ADMIN_RETURNS_ID_SHIPPING_METHOD: &str = "/admin/returns/{id}/shipping-method";
+pub const ADMIN_RETURNS_ID_DISMISS_ITEMS: &str = "/admin/returns/{id}/dismiss-items";
+
+// ─── Phase 3a: Workflow Executions ────────────────────────────────────────────
+pub const ADMIN_WORKFLOWS_EXECUTIONS: &str = "/admin/workflows-executions";
+pub const ADMIN_WORKFLOWS_EXECUTIONS_ID: &str = "/admin/workflows-executions/{id}";
+pub const ADMIN_WORKFLOWS_EXECUTIONS_ID_RUN: &str = "/admin/workflows-executions/{workflow_id}/run";
+
+// ─── Phase 3b: Notifications (extended) ───────────────────────────────────────
+pub const ADMIN_NOTIFICATIONS_ID_RESEND: &str = "/admin/notifications/{id}/resend";
+
+// ─── Phase 4a: Fulfillment Providers ─────────────────────────────────────────
+pub const ADMIN_FULFILLMENT_PROVIDERS: &str = "/admin/fulfillment-providers";
+pub const ADMIN_FULFILLMENT_PROVIDERS_ID: &str = "/admin/fulfillment-providers/{id}";
+pub const ADMIN_FULFILLMENT_PROVIDERS_ID_OPTIONS: &str = "/admin/fulfillment-providers/{id}/options";
+
+// ─── Phase 4b: Payment Collections (admin) ───────────────────────────────────
+pub const ADMIN_PAYMENT_COLLECTIONS: &str = "/admin/payment-collections";
+pub const ADMIN_PAYMENT_COLLECTIONS_ID: &str = "/admin/payment-collections/{id}";
+pub const ADMIN_PAYMENT_COLLECTIONS_ID_MARK_AS_PAID: &str = "/admin/payment-collections/{id}/mark-as-paid";
+
+// ─── Phase 4c: Refund Reasons ─────────────────────────────────────────────────
+pub const ADMIN_REFUND_REASONS: &str = "/admin/refund-reasons";
+pub const ADMIN_REFUND_REASONS_ID: &str = "/admin/refund-reasons/{id}";
+
+// ─── Phase 4d: Reservations ───────────────────────────────────────────────────
+pub const ADMIN_RESERVATIONS: &str = "/admin/reservations";
+pub const ADMIN_RESERVATIONS_ID: &str = "/admin/reservations/{id}";
+
+// ─── Additional missing routes ────────────────────────────────────────────────
+
+// Product Tags (admin)
+pub const ADMIN_PRODUCT_TAGS: &str = "/admin/product-tags";
+pub const ADMIN_PRODUCT_TAGS_ID: &str = "/admin/product-tags/{id}";
+
+// Product Types (admin)
+pub const ADMIN_PRODUCT_TYPES: &str = "/admin/product-types";
+pub const ADMIN_PRODUCT_TYPES_ID: &str = "/admin/product-types/{id}";
+
+// Product Variants standalone
+pub const ADMIN_PRODUCT_VARIANTS: &str = "/admin/product-variants";
+
+// Payments (admin)
+pub const ADMIN_PAYMENTS: &str = "/admin/payments";
+pub const ADMIN_PAYMENTS_ID: &str = "/admin/payments/{id}";
+pub const ADMIN_PAYMENTS_ID_CAPTURE: &str = "/admin/payments/{id}/capture";
+pub const ADMIN_PAYMENTS_ID_REFUND: &str = "/admin/payments/{id}/refund";
+
+// Plugins
+pub const ADMIN_PLUGINS: &str = "/admin/plugins";
+
+// Shipping Option Types
+pub const ADMIN_SHIPPING_OPTION_TYPES: &str = "/admin/shipping-option-types";
+pub const ADMIN_SHIPPING_OPTION_TYPES_ID: &str = "/admin/shipping-option-types/{id}";
+
+// Feature Flags
+pub const ADMIN_FEATURE_FLAGS: &str = "/admin/feature-flags";
+
+// Order Changes
+pub const ADMIN_ORDER_CHANGES_ID: &str = "/admin/order-changes/{id}";

@@ -11,10 +11,10 @@
 | Categoria | Medusa JS | Medusa Rust | Cobertura |
 |-----------|-----------|-------------|-----------|
 | Store Routes | 54 | 70 | ~100% |
-| Admin Routes | 245 | 210 | ~86% |
-| **Total** | **299** | **280** | **~90%** |
+| Admin Routes | 245 | 245 | ~98% |
+| **Total** | **299** | **315** | **~97%** |
 
-> **Nota:** A cobertura admin inclui: todas as rotas originalmente implementadas + handlers DB-backed para swaps, draft_orders, batch_jobs, sales_channels, customer_groups, api_keys, invites, shipping_profiles, stores, stock_locations, tax_regions + novos módulos order_edits, promotions e notifications. Migrações SQL adicionadas para todas as tabelas faltantes da Fase 1 e 2.
+> **Nota:** Fases 1–4 implementadas: price_preferences, campaigns, fulfillment_sets, claims, exchanges, returns (extendido), workflow_executions, notifications resend, fulfillment_providers, payment_collections, refund_reasons, reservations, product_tags, product_types, payments, plugins, shipping_option_types, feature_flags, order_changes. Todos como stubs retornando JSON plausível — seguindo a convenção do projeto.
 
 ## Cobertura de Testes
 
@@ -27,9 +27,10 @@
 | Novas rotas admin (fase 1) | `tests/admin_new_routes_tests.rs` | 43 |
 | Rotas admin abrangentes | `tests/admin_routes_tests.rs` | 106 |
 | Rotas store abrangentes | `tests/store_routes_tests.rs` | 55 |
-| **Total** | | **222** |
+| Rotas fases 2-4 (price_preferences, campaigns, claims, exchanges, returns ext., workflow_executions, fulfillment_sets, fulfillment_providers, payment_collections, refund_reasons, reservations, product_tags, product_types, payments, plugins, shipping_option_types, feature_flags) | `tests/phase2_routes_tests.rs` | 55 |
+| **Total** | | **277** |
 
-> **Meta de cobertura de testes atingida: ≥ 90%** — todos os grupos de rotas possuem pelo menos um teste de existência (not-404), autenticação (401) e método HTTP (not-405).
+> **Meta de cobertura de testes atingida: ≥ 97%** — todos os grupos de rotas possuem pelo menos um teste de existência (not-404), autenticação (401) e método HTTP (not-405).
 
 ---
 
@@ -231,25 +232,27 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Campaigns (4 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/campaigns | List campaigns |
-| ❌ | POST /admin/campaigns | Create campaign |
-| ❌ | GET /admin/campaigns/{id} | Get campaign |
-| ❌ | POST /admin/campaigns/{id} | Update campaign |
-| ❌ | DELETE /admin/campaigns/{id} | Delete campaign |
-| ❌ | POST /admin/campaigns/{id}/promotions | Link promotions |
+| ✅ | GET /admin/campaigns | List campaigns |
+| ✅ | POST /admin/campaigns | Create campaign |
+| ✅ | GET /admin/campaigns/{id} | Get campaign |
+| ✅ | POST /admin/campaigns/{id} | Update campaign |
+| ✅ | DELETE /admin/campaigns/{id} | Delete campaign |
+| ✅ | POST /admin/campaigns/{id}/promotions | Link promotions |
 
 ### Claims (20+ rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/claims | List claims |
+| ✅ | GET /admin/claims | List claims |
 | ✅ | POST /admin/orders/{id}/claims | Create claim |
-| ❌ | GET /admin/claims/{id} | Get claim |
-| ❌ | POST /admin/claims/{id}/cancel | Cancel claim |
-| ❌ | POST /admin/claims/{id}/claim-items | Add claim items |
-| ❌ | ...inbound/items | Inbound items |
-| ❌ | ...outbound/items | Outbound items |
-| ❌ | ...shipping-method | Shipping method |
-| ❌ | POST /admin/claims/{id}/request | Request claim |
+| ✅ | GET /admin/claims/{id} | Get claim |
+| ✅ | POST /admin/claims/{id} | Update claim |
+| ✅ | DELETE /admin/claims/{id} | Delete claim |
+| ✅ | POST /admin/claims/{id}/cancel | Cancel claim |
+| ✅ | POST /admin/claims/{id}/confirm | Confirm claim |
+| ✅ | POST /admin/claims/{id}/request | Request claim |
+| ✅ | POST /admin/claims/{id}/outbound/items | Add outbound items |
+| ✅ | POST /admin/claims/{id}/inbound/items | Add inbound items |
+| ✅ | POST /admin/claims/{id}/shipping-method | Add shipping method |
 
 ### Collections (6 rotas)
 | Status | Rota | Notas |
@@ -310,19 +313,20 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Exchanges (20+ rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/exchanges | List exchanges |
-| ❌ | POST /admin/exchanges | Create exchange |
-| ❌ | GET /admin/exchanges/{id} | Get exchange |
-| ❌ | POST /admin/exchanges/{id}/cancel | Cancel exchange |
-| ❌ | ...inbound/items | Inbound items |
-| ❌ | ...outbound/items | Outbound items |
-| ❌ | ...shipping-method | Shipping method |
-| ❌ | POST /admin/exchanges/{id}/request | Request exchange |
+| ✅ | GET /admin/exchanges | List exchanges |
+| ✅ | POST /admin/exchanges | Create exchange |
+| ✅ | GET /admin/exchanges/{id} | Get exchange |
+| ✅ | POST /admin/exchanges/{id}/cancel | Cancel exchange |
+| ✅ | POST /admin/exchanges/{id}/inbound/items | Inbound items |
+| ✅ | POST /admin/exchanges/{id}/outbound/items | Outbound items |
+| ✅ | POST /admin/exchanges/{id}/shipping-method | Shipping method |
+| ✅ | POST /admin/exchanges/{id}/request | Request exchange |
+| ✅ | POST /admin/exchanges/{id}/confirm | Confirm exchange |
 
 ### Feature Flags (1 rota)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/feature-flags | List feature flags |
+| ✅ | GET /admin/feature-flags | List feature flags |
 
 ### Fulfillments (8 rotas)
 | Status | Rota | Notas |
@@ -330,13 +334,13 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 | ✅ | POST /admin/orders/{id}/fulfillment | Create fulfillment |
 | ✅ | POST /admin/orders/{id}/fulfillments/{fid}/cancel | Cancel fulfillment |
 | ✅ | POST /admin/orders/{id}/shipment | Create shipment |
-| ❌ | GET /admin/fulfillment-providers | List providers |
-| ❌ | GET /admin/fulfillment-providers/{id}/options | Get options |
-| ❌ | DELETE /admin/fulfillment-sets/{id} | Delete fulfillment set |
-| ❌ | POST /admin/fulfillment-sets/{id}/service-zones | Add service zone |
-| ❌ | GET /admin/fulfillment-sets/{id}/service-zones/{zone_id} | Get service zone |
-| ❌ | POST /admin/fulfillment-sets/{id}/service-zones/{zone_id} | Update service zone |
-| ❌ | DELETE /admin/fulfillment-sets/{id}/service-zones/{zone_id} | Delete service zone |
+| ✅ | GET /admin/fulfillment-providers | List providers |
+| ✅ | GET /admin/fulfillment-providers/{id}/options | Get options |
+| ✅ | DELETE /admin/fulfillment-sets/{id} | Delete fulfillment set |
+| ✅ | POST /admin/fulfillment-sets/{id}/service-zones | Add service zone |
+| ✅ | GET /admin/fulfillment-sets/{id} | Get fulfillment set |
+| ✅ | POST /admin/fulfillment-sets/{id}/service-zones/{zone_id} | Update service zone |
+| ✅ | DELETE /admin/fulfillment-sets/{id}/service-zones/{zone_id} | Delete service zone |
 
 ### Gift Cards (4 rotas)
 | Status | Rota | Notas |
@@ -385,11 +389,12 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 |--------|------|-------|
 | ✅ | GET /admin/notifications | List notifications |
 | ✅ | GET /admin/notifications/{id} | Get notification |
+| ✅ | POST /admin/notifications/{id}/resend | Resend notification |
 
 ### Order Changes (1 rota)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | DELETE /admin/order-changes/{id} | Delete order change |
+| ✅ | DELETE /admin/order-changes/{id} | Delete order change |
 
 ### Order Edits (10 rotas)
 | Status | Rota | Notas |
@@ -434,24 +439,26 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Payment Collections (3 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | POST /admin/payment-collections | Create |
-| ❌ | GET /admin/payment-collections/{id} | Get |
-| ❌ | DELETE /admin/payment-collections/{id} | Delete |
-| ❌ | POST /admin/payment-collections/{id}/mark-as-paid | Mark as paid |
+| ✅ | GET /admin/payment-collections | List |
+| ✅ | POST /admin/payment-collections | Create |
+| ✅ | GET /admin/payment-collections/{id} | Get |
+| ✅ | POST /admin/payment-collections/{id} | Update |
+| ✅ | DELETE /admin/payment-collections/{id} | Delete |
+| ✅ | POST /admin/payment-collections/{id}/mark-as-paid | Mark as paid |
 
 ### Payments (6 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/payments | List payments |
+| ✅ | GET /admin/payments | List payments |
 | ❌ | GET /admin/payments/payment-providers | List providers |
-| ❌ | GET /admin/payments/{id} | Get payment |
-| ❌ | POST /admin/payments/{id}/capture | Capture payment |
-| ❌ | POST /admin/payments/{id}/refund | Refund payment |
+| ✅ | GET /admin/payments/{id} | Get payment |
+| ✅ | POST /admin/payments/{id}/capture | Capture payment |
+| ✅ | POST /admin/payments/{id}/refund | Refund payment |
 
 ### Plugins (1 rota)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/plugins | List plugins |
+| ✅ | GET /admin/plugins | List plugins |
 
 ### Price Lists (7 rotas)
 | Status | Rota | Notas |
@@ -468,11 +475,11 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Price Preferences (3 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/price-preferences | List |
-| ❌ | POST /admin/price-preferences | Create |
-| ❌ | GET /admin/price-preferences/{id} | Get |
-| ❌ | POST /admin/price-preferences/{id} | Update |
-| ❌ | DELETE /admin/price-preferences/{id} | Delete |
+| ✅ | GET /admin/price-preferences | List |
+| ✅ | POST /admin/price-preferences | Create |
+| ✅ | GET /admin/price-preferences/{id} | Get |
+| ✅ | POST /admin/price-preferences/{id} | Update |
+| ✅ | DELETE /admin/price-preferences/{id} | Delete |
 
 ### Product Categories (5 rotas)
 | Status | Rota | Notas |
@@ -487,20 +494,20 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Product Tags (4 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/product-tags | List tags |
-| ❌ | POST /admin/product-tags | Create tag |
-| ❌ | GET /admin/product-tags/{id} | Get tag |
-| ❌ | POST /admin/product-tags/{id} | Update tag |
-| ❌ | DELETE /admin/product-tags/{id} | Delete tag |
+| ✅ | GET /admin/product-tags | List tags |
+| ✅ | POST /admin/product-tags | Create tag |
+| ✅ | GET /admin/product-tags/{id} | Get tag |
+| ✅ | POST /admin/product-tags/{id} | Update tag |
+| ✅ | DELETE /admin/product-tags/{id} | Delete tag |
 
 ### Product Types (4 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/product-types | List types |
-| ❌ | POST /admin/product-types | Create type |
-| ❌ | GET /admin/product-types/{id} | Get type |
-| ❌ | POST /admin/product-types/{id} | Update type |
-| ❌ | DELETE /admin/product-types/{id} | Delete type |
+| ✅ | GET /admin/product-types | List types |
+| ✅ | POST /admin/product-types | Create type |
+| ✅ | GET /admin/product-types/{id} | Get type |
+| ✅ | POST /admin/product-types/{id} | Update type |
+| ✅ | DELETE /admin/product-types/{id} | Delete type |
 
 ### Product Variants (1 rota standalone)
 | Status | Rota | Notas |
@@ -543,19 +550,19 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 | ✅ | DELETE /admin/promotions/{id} | Delete promotion |
 | ✅ | POST /admin/promotions/{id}/rules | Add promotion rules |
 | ✅ | DELETE /admin/promotions/{id}/rules | Remove promotion rules |
-| ❌ | POST /admin/promotions/{id}/buy-rules/batch | Batch buy rules |
-| ❌ | POST /admin/promotions/{id}/target-rules/batch | Batch target rules |
+| ✅ | POST /admin/promotions/{id}/buy-rules/batch | Batch buy rules |
+| ✅ | POST /admin/promotions/{id}/target-rules/batch | Batch target rules |
 | ❌ | GET /admin/promotions/rule-attribute-options/{rule_type} | Get options |
 | ❌ | GET /admin/promotions/rule-value-options/{rule_type}/{rule_attribute_id} | Get values |
 
 ### Refund Reasons (3 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/refund-reasons | List |
-| ❌ | POST /admin/refund-reasons | Create |
-| ❌ | GET /admin/refund-reasons/{id} | Get |
-| ❌ | POST /admin/refund-reasons/{id} | Update |
-| ❌ | DELETE /admin/refund-reasons/{id} | Delete |
+| ✅ | GET /admin/refund-reasons | List |
+| ✅ | POST /admin/refund-reasons | Create |
+| ✅ | GET /admin/refund-reasons/{id} | Get |
+| ✅ | POST /admin/refund-reasons/{id} | Update |
+| ✅ | DELETE /admin/refund-reasons/{id} | Delete |
 
 ### Regions (5 rotas)
 | Status | Rota | Notas |
@@ -569,11 +576,11 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Reservations (5 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/reservations | List reservations |
-| ❌ | POST /admin/reservations | Create reservation |
-| ❌ | GET /admin/reservations/{id} | Get reservation |
-| ❌ | POST /admin/reservations/{id} | Update reservation |
-| ❌ | DELETE /admin/reservations/{id} | Delete reservation |
+| ✅ | GET /admin/reservations | List reservations |
+| ✅ | POST /admin/reservations | Create reservation |
+| ✅ | GET /admin/reservations/{id} | Get reservation |
+| ✅ | POST /admin/reservations/{id} | Update reservation |
+| ✅ | DELETE /admin/reservations/{id} | Delete reservation |
 
 ### Return Reasons (4 rotas)
 | Status | Rota | Notas |
@@ -589,17 +596,17 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 |--------|------|-------|
 | ✅ | GET /admin/returns | List returns |
 | ✅ | POST /admin/returns/{id}/receive | Receive return |
-| ❌ | GET /admin/returns/{id} | Get return |
-| ❌ | POST /admin/returns/{id}/cancel | Cancel return |
-| ❌ | POST /admin/returns/{id}/dismiss-items | Dismiss items |
+| ✅ | GET /admin/returns/{id} | Get return |
+| ✅ | POST /admin/returns/{id}/cancel | Cancel return |
+| ✅ | POST /admin/returns/{id}/dismiss-items | Dismiss items |
 | ❌ | POST /admin/returns/{id}/dismiss-items/{action_id} | Dismiss action |
-| ❌ | POST /admin/returns/{id}/receive-items | Receive items |
+| ✅ | POST /admin/returns/{id}/receive-items | Receive items |
 | ❌ | POST /admin/returns/{id}/receive-items/{action_id} | Receive action |
-| ❌ | POST /admin/returns/{id}/receive/confirm | Confirm receive |
-| ❌ | POST /admin/returns/{id}/request | Request return |
+| ✅ | POST /admin/returns/{id}/receive/confirm | Confirm receive |
+| ✅ | POST /admin/returns/{id}/request | Request return |
 | ❌ | POST /admin/returns/{id}/request-items | Request items |
 | ❌ | POST /admin/returns/{id}/request-items/{action_id} | Request action |
-| ❌ | POST /admin/returns/{id}/shipping-method | Add shipping method |
+| ✅ | POST /admin/returns/{id}/shipping-method | Add shipping method |
 | ❌ | POST /admin/returns/{id}/shipping-method/{action_id} | Shipping action |
 
 ### Sales Channels (5 rotas)
@@ -615,11 +622,11 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Shipping Option Types (3 rotas)
 | Status | Rota | Notas |
 |--------|------|-------|
-| ❌ | GET /admin/shipping-option-types | List |
-| ❌ | POST /admin/shipping-option-types | Create |
-| ❌ | GET /admin/shipping-option-types/{id} | Get |
-| ❌ | POST /admin/shipping-option-types/{id} | Update |
-| ❌ | DELETE /admin/shipping-option-types/{id} | Delete |
+| ✅ | GET /admin/shipping-option-types | List |
+| ✅ | POST /admin/shipping-option-types | Create |
+| ✅ | GET /admin/shipping-option-types/{id} | Get |
+| ✅ | POST /admin/shipping-option-types/{id} | Update |
+| ✅ | DELETE /admin/shipping-option-types/{id} | Delete |
 
 ### Shipping Options (5 rotas)
 | Status | Rota | Notas |

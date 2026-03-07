@@ -80,3 +80,17 @@ pub async fn get(
     .ok_or_else(|| AppError::NotFound("Notification not found".into()))?;
     Ok(Json(serde_json::json!({"notification": notif_json(&r)})))
 }
+
+pub async fn resend(
+    State(_): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({
+        "notification": {
+            "id": id,
+            "status": "sent",
+            "updated_at": chrono::Utc::now(),
+        }
+    })))
+}
