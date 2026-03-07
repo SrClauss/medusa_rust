@@ -41,6 +41,7 @@ pub fn store_router(state: AppState) -> Router<AppState> {
         .route(STORE_CARTS_ID_SHIPPING_METHODS, post(carts::add_shipping_method))
         .route(STORE_CARTS_ID_COMPLETE, post(carts::complete))
         .route(STORE_CARTS_ID_TAXES, post(carts::calculate_taxes))
+        .route(STORE_CARTS_ID_CUSTOMER, post(carts::set_customer))
         // Customer registration & password reset (public)
         .route(STORE_CUSTOMERS, post(customers::create_customer))
         .route(STORE_CUSTOMERS_PASSWORD_TOKEN, post(customers::request_password_reset))

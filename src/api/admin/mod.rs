@@ -4,6 +4,7 @@ pub mod auth;
 pub mod batch_jobs;
 pub mod categories;
 pub mod collections;
+pub mod currencies;
 pub mod customers;
 pub mod discounts;
 pub mod draft_orders;
@@ -209,6 +210,9 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
             ADMIN_GIFT_CARDS_ID,
             get(gift_cards::get).put(gift_cards::update).delete(gift_cards::delete_one),
         )
+        // Currencies
+        .route(ADMIN_CURRENCIES, get(currencies::list))
+        .route(ADMIN_CURRENCIES_CODE, get(currencies::get).put(currencies::update))
         // Batch Jobs
         .route(ADMIN_BATCH_JOBS, get(batch_jobs::list).post(batch_jobs::create))
         .route(ADMIN_BATCH_JOBS_ID, get(batch_jobs::get))

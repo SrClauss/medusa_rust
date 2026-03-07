@@ -328,3 +328,40 @@ pub async fn update_payment_session(State(state): State<AppState>, Path((cart_id
     sqlx::query("UPDATE payment_sessions SET updated_at = NOW() WHERE cart_id = $1 AND provider_id = $2").bind(cart_id).bind(provider_id).execute(&*state.db).await?;
     Ok(Json(serde_json::json!({"cart":fetch_cart(&state, cart_id).await?})))
 }
+
+// ─── Customer ─────────────────────────────────────────────────────────────────
+
+pub async fn set_customer(
+    State(state): State<AppState>,
+    Path(cart_id): Path<Uuid>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let customer_id: Uuid = payload
+        .get("customer_id")
+        .and_then(|v| v.as_str())
+        .and_then(|s| s.parse().ok())
+        .ok_or_else(|| AppError::BadRequest("customer_id required".into()))?;
+
+    // Verify cart exists and is not completed
+    let completed: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
+        "SELECT completed_at FROM carts WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(cart_id)
+    .fetch_optional(&*state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Cart not found".into()))?;
+
+    if completed.is_some() {
+        return Err(AppError::BadRequest("Cart is already completed".into()));
+    }
+
+    sqlx::query(
+        "UPDATE carts SET customer_id = $2, updated_at = NOW() WHERE id = $1",
+    )
+    .bind(cart_id)
+    .bind(customer_id)
+    .execute(&*state.db)
+    .await?;
+
+    Ok(Json(serde_json::json!({ "cart": fetch_cart(&state, cart_id).await? })))
+}
