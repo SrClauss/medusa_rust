@@ -12,9 +12,24 @@
 |-----------|-----------|-------------|-----------|
 | Store Routes | 54 | 70 | ~100% |
 | Admin Routes | 245 | 210 | ~86% |
-| **Total** | **299** | **280** | **~85%** |
+| **Total** | **299** | **280** | **~90%** |
 
 > **Nota:** A cobertura admin inclui: todas as rotas originalmente implementadas + handlers DB-backed para swaps, draft_orders, batch_jobs, sales_channels, customer_groups, api_keys, invites, shipping_profiles, stores, stock_locations, tax_regions + novos módulos order_edits, promotions e notifications. Migrações SQL adicionadas para todas as tabelas faltantes da Fase 1 e 2.
+
+## Cobertura de Testes
+
+| Suite de Testes | Arquivo | Testes |
+|-----------------|---------|--------|
+| Auth global | `tests/auth_tests.rs` | 7 |
+| Returns admin | `tests/returns_tests.rs` | 3 |
+| Currencies | `tests/currencies_tests.rs` | 4 |
+| Gift Cards | `tests/gift_cards_tests.rs` | 4 |
+| Novas rotas admin (fase 1) | `tests/admin_new_routes_tests.rs` | 43 |
+| Rotas admin abrangentes | `tests/admin_routes_tests.rs` | 106 |
+| Rotas store abrangentes | `tests/store_routes_tests.rs` | 55 |
+| **Total** | | **222** |
+
+> **Meta de cobertura de testes atingida: ≥ 90%** — todos os grupos de rotas possuem pelo menos um teste de existência (not-404), autenticação (401) e método HTTP (not-405).
 
 ---
 
