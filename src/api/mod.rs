@@ -1,5 +1,6 @@
 //! Top-level router — merges admin, store and wizard routes.
 
+pub mod auth;
 pub mod admin;
 pub mod store;
 
@@ -8,6 +9,7 @@ use crate::{routes_manifest::*, state::AppState};
 
 pub fn build_router(state: AppState) -> Router {
     Router::new()
+        .merge(auth::auth_router(state.clone()))
         .merge(admin::admin_router(state.clone()))
         .merge(store::store_router(state.clone()))
         // Wizard / Importer endpoints

@@ -29,18 +29,28 @@
 ## PARTE 1: Store Routes (54 total no Medusa JS)
 
 ### Autenticação (7 rotas)
+Este conjunto reúne tanto as rotas tradicionais do `store`/`admin` quanto o novo conjunto
+compartilhado `GET/POST /auth/:actor/:provider` usado por provedores OAuth (email/password por enquanto).
+Uma abstração de serviço (`AuthService`) permite substituir a implementação (o `EmailPasswordService`
+padrão cuida de login, registro, reset e atualização via payload).
+Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/auth/session` e 
+`/auth/token/refresh` para reconhecer tanto tokens de cliente quanto de administrador.
+
 | Status | Rota | Notas |
 |--------|------|-------|
-| ✅ | POST /store/auth | Login |
+| ✅ | POST /store/auth | Login (compartilhado entre store/admin) |
 | ✅ | GET /store/auth | Get session |
 | ✅ | DELETE /store/auth | Logout |
-| ❌ | GET /auth/customer/{auth_provider} | OAuth provider |
-| ❌ | GET /auth/customer/{auth_provider}/callback | OAuth callback |
-| ❌ | POST /auth/customer/{auth_provider}/register | OAuth register |
-| ❌ | POST /auth/customer/{auth_provider}/reset-password | OAuth reset |
-| ❌ | POST /auth/customer/{auth_provider}/update | OAuth update |
-| ❌ | DELETE /auth/session | Session delete |
-| ❌ | POST /auth/token/refresh | Token refresh |
+| ✅ | GET /auth/customer/{auth_provider} | OAuth provider (email-only) |
+| ✅ | GET /auth/customer/{auth_provider}/callback | OAuth callback (stub) |
+| ✅ | POST /auth/customer/{auth_provider}/register | OAuth register (email) |
+| ✅ | POST /auth/customer/{auth_provider}/reset-password | OAuth reset (email) |
+| ✅ | POST /auth/customer/{auth_provider}/update | OAuth update (stub) |
+| ✅ | POST /auth/session | Retrieve session (requires auth middleware) |
+| ✅ | DELETE /auth/session | Session delete |
+| ✅ | POST /auth/token/refresh | Token refresh (requires auth middleware) |
+
+> 🧪 **Test suite:** `tests/auth_tests.rs` exercises all global auth endpoints (provider, callback, register, reset, update, session, refresh) using a dummy service to assert request/response shapes.
 
 ### Carrinho (14 rotas)
 | Status | Rota | Notas |
@@ -730,13 +740,13 @@
 | ✅ | POST /admin/auth | Login |
 | ✅ | GET /admin/auth | Get session |
 | ✅ | DELETE /admin/auth | Logout |
-| ❌ | DELETE /auth/session | Delete session |
-| ❌ | POST /auth/token/refresh | Refresh token |
-| ❌ | GET /auth/user/{auth_provider} | OAuth |
-| ❌ | GET /auth/user/{auth_provider}/callback | OAuth callback |
-| ❌ | POST /auth/user/{auth_provider}/register | OAuth register |
-| ❌ | POST /auth/user/{auth_provider}/reset-password | OAuth reset |
-| ❌ | POST /auth/user/{auth_provider}/update | OAuth update |
+| ✅ | DELETE /auth/session | Delete session (shared) |
+| ✅ | POST /auth/token/refresh | Refresh token (shared) |
+| ✅ | GET /auth/user/{auth_provider} | OAuth (email-only) |
+| ✅ | GET /auth/user/{auth_provider}/callback | OAuth callback (stub) |
+| ✅ | POST /auth/user/{auth_provider}/register | OAuth register (email) |
+| ✅ | POST /auth/user/{auth_provider}/reset-password | OAuth reset (email) |
+| ✅ | POST /auth/user/{auth_provider}/update | OAuth update (stub) |
 
 ### Index (2 rotas)
 | Status | Rota | Notas |
