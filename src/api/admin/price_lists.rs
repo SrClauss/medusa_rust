@@ -340,23 +340,31 @@ pub async fn delete_prices(
     Json(payload): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if let Some(price_ids) = payload.get("price_ids").and_then(|v| v.as_array()) {
+        let mut deleted_ids: Vec<serde_json::Value> = Vec::new();
         for price_id in price_ids {
             if let Some(pid) = price_id.as_str().and_then(|s| s.parse::<Uuid>().ok()) {
-                if let Err(e) = sqlx::query(
+                match sqlx::query(
                     "UPDATE money_amounts SET deleted_at = NOW() \
-                     WHERE id = $1 AND price_list_id = $2",
+                     WHERE id = $1 AND price_list_id = $2 AND deleted_at IS NULL",
                 )
                 .bind(pid)
                 .bind(id)
                 .execute(&*state.db)
                 .await
                 {
-                    tracing::warn!("Failed to delete price {}: {}", pid, e);
+                    Ok(res) if res.rows_affected() > 0 => {
+                        deleted_ids.push(serde_json::json!(pid));
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::warn!("Failed to delete price {}: {}", pid, e);
+                    }
                 }
             }
         }
+        return Ok(Json(serde_json::json!({ "ids": deleted_ids, "object": "money-amount", "deleted": true })));
     }
-    Ok(Json(serde_json::json!({ "ids": payload.get("price_ids"), "object": "money-amount", "deleted": true })))
+    Ok(Json(serde_json::json!({ "ids": [], "object": "money-amount", "deleted": true })))
 }
 
 pub async fn list_products(
@@ -364,6 +372,16 @@ pub async fn list_products(
     Path(id): Path<Uuid>,
     Query(p): Query<ListParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(DISTINCT p.id) \
+         FROM products p \
+         JOIN product_variants pv ON pv.product_id = p.id \
+         JOIN money_amounts ma ON ma.variant_id = pv.id \
+         WHERE ma.price_list_id = $1 AND ma.deleted_at IS NULL AND p.deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_one(&*state.db)
+    .await?;
     let rows = sqlx::query(
         "SELECT DISTINCT p.id, p.title, p.handle, p.status, p.created_at, p.updated_at \
          FROM products p \
@@ -392,7 +410,7 @@ pub async fn list_products(
         .collect();
     Ok(Json(serde_json::json!({
         "products": products,
-        "count": products.len(),
+        "count": count,
         "offset": p.offset,
         "limit": p.limit,
     })))
