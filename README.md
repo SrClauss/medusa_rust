@@ -59,7 +59,7 @@ MedusaRust é uma reimplementação em Rust do back-end do [MedusaJS v2](https:/
 | Autenticação                | JWT + bcrypt           | JWT + Argon2                      |
 | Cache                       | Redis (opcional)       | Moka in-process (padrão)          |
 | Object storage              | S3/MinIO               | S3/MinIO ✅                       |
-| Plugin system               | ✅ Completo            | ❌ Não implementado               |
+| Plugin system               | 🟡 Parcialmente         | ✅ Estrutura básica com rota de listagem, manager e suporte a plugins estáticos |
 | Event bus                   | ✅ (Redis/SQS)         | ❌ Não implementado               |
 | Workflows / Sagas           | ✅                     | ❌ Não implementado               |
 | Webhooks                    | ✅                     | ❌ Não implementado               |
@@ -605,7 +605,7 @@ As seguintes funcionalidades existem no MedusaJS mas **ainda não estão impleme
 
 | Funcionalidade | Impacto |
 |----------------|---------|
-| **Plugin System** | Sem suporte a plugins externos (Stripe, PayPal, etc.) |
+| **Plugin System** | Suporte inicial: manager, rota administrativa e API para registrar provedores. Não há carregamento dinâmico ou plugins de terceiros ainda. |
 | **Event Bus** | Sem publish/subscribe de eventos de domínio |
 | **Webhooks** | Sem notificações para sistemas externos |
 | **Scheduled Jobs** | Sem tarefas agendadas (expirar descontos, etc.) |

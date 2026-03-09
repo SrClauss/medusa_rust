@@ -93,6 +93,7 @@ fn make_state() -> AppState {
         jwt_secret: "secret".into(),
         auth_service: Arc::new(DummyAuth),
         payment_methods: Arc::new(tokio::sync::Mutex::new(Vec::new())),
+        plugin_mgr: Arc::new(tokio::sync::Mutex::new(medusa_rust::plugins::PluginManager::new())),
     }
 }
 

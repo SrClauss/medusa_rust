@@ -11,5 +11,8 @@ pub mod state;
 pub mod storage;
 pub mod wizard;
 
+// extensibility plugins
+pub mod plugins;
+
 // re-export commonly used types
 pub use state::{AppState, StorageConfig};

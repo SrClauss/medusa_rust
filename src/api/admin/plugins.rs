@@ -13,12 +13,19 @@ pub struct ListParams {
 fn d20() -> i64 { 20 }
 
 pub async fn list(
-    State(_): State<AppState>,
+    State(state): State<AppState>,
     Query(p): Query<ListParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    let pm = state.plugin_mgr.lock().await;
+    let list: Vec<&dyn crate::plugins::Plugin> = pm.list();
+    let items: Vec<serde_json::Value> = list
+        .iter()
+        .map(|p| serde_json::json!({"id": p.id(), "kind": format!("{}", p.kind())}))
+        .collect();
+
     Ok(Json(serde_json::json!({
-        "plugins": [],
-        "count": 0,
+        "plugins": items,
+        "count": items.len(),
         "offset": p.offset,
         "limit": p.limit,
     })))

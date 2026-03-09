@@ -218,16 +218,7 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 
 ## PARTE 2: Admin Routes (245 total no Medusa JS)
 
-### API Keys (5 rotas)
-| Status | Rota | Notas |
-|--------|------|-------|
-| ✅ | GET /admin/api-keys | List API keys |
-| ✅ | POST /admin/api-keys | Create API key |
-| ✅ | GET /admin/api-keys/{id} | Get API key |
-| ✅ | POST /admin/api-keys/{id} | Update API key |
-| ✅ | DELETE /admin/api-keys/{id} | Delete API key |
-| ✅ | POST /admin/api-keys/{id}/revoke | Revoke API key |
-| ❌ | POST /admin/api-keys/{id}/sales-channels | Link sales channels |
+
 
 ### Campaigns (4 rotas)
 | Status | Rota | Notas |
@@ -796,7 +787,8 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Sistema de Plugins
 | Status | Funcionalidade | Notas |
 |--------|----------------|-------|
-| ❌ | Plugin loader | Carregar plugins externos |
+| 🟡 | Base do mecanismo | Trait `Plugin` + `PluginManager` + rota `/admin/plugins` |
+| ❌ | Plugin loader | Carregar plugins externos (future work) |
 | ❌ | Payment plugins | Stripe, PayPal, etc. |
 | ❌ | Fulfillment plugins | Manual, custom |
 | ❌ | Notification plugins | Email, SMS |

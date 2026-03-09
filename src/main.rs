@@ -7,8 +7,11 @@ mod error;
 mod models;
 mod routes_manifest;
 mod state;
+mod plugins;
 mod storage;
 mod wizard;
+
+use crate::plugins::PluginManager;
 
 use std::sync::Arc;
 use moka::future::Cache;
@@ -57,14 +60,23 @@ async fn main() -> anyhow::Result<()> {
     let auth_service = crate::api::auth::EmailPasswordService::new(pool.clone());
 
     let state = AppState {
-        db:             Arc::new(pool),
+        db:             Arc::new(pool.clone()),
         cache:          Arc::new(cache),
         storage:        Arc::new(s3),
         storage_config: Arc::new(storage_config),
         jwt_secret,
         auth_service:   Arc::new(auth_service),
         payment_methods: Arc::new(tokio::sync::Mutex::new(Vec::new())),
+        plugin_mgr:      Arc::new(tokio::sync::Mutex::new(crate::plugins::PluginManager::new())),
     };
+
+    // feature-gated built-in plugin registration
+    #[cfg(feature = "manual_plugin")]
+    {
+        let mut pm = state.plugin_mgr.lock().await;
+        crate::plugins::register_builtin_plugins(&mut pm, &state)
+            .expect("failed to register built-in plugins");
+    }
 
     // ── CORS ──────────────────────────────────────────────────────────────────
     let cors = tower_http::cors::CorsLayer::new()

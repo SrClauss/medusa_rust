@@ -121,6 +121,12 @@ pub struct AppState {
     /// routes and is sufficient for tests that are only concerned with the
     /// request/response shape.
     pub payment_methods: Arc<tokio::sync::Mutex<Vec<serde_json::Value>>>,
+
+    /// Manager containing all currently-registered plugins.  Plugins may be
+    /// registered during startup or at runtime via the admin API.  Access is
+    /// protected by a mutex since registration happens infrequently but reads
+    /// may occur on every request.
+    pub plugin_mgr: Arc<tokio::sync::Mutex<crate::plugins::PluginManager>>,
 }
 
 // Compile-time proof that AppState satisfies Axum's requirements.
