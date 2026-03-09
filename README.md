@@ -65,9 +65,9 @@ MedusaRust é uma reimplementação em Rust do back-end do [MedusaJS v2](https:/
 | Workflows / Sagas           | ✅                     | ✅ Saga state machine com steps + compensações; `execute_persistent()` + `execute_persistent_with_events()`; migração SQL |
 | Webhooks (receber)          | ✅                     | ✅ Rota `/hooks/payment/:provider` |
 | Webhooks (criar/gerenciar)  | ✅                     | ✅ API de criação/listagem/exclusão por plugin |
-| OAuth social login          | ✅                     | ❌ (stub)                         |
-| Email / SMS                 | ✅                     | ❌ Não implementado               |
-| Search (MeiliSearch/Algolia)| ✅                     | ❌ Não implementado               |
+| OAuth social login          | ✅                     | ✅ Google, Facebook, GitHub (`auth-google`, `auth-facebook`, `auth-github` features) |
+| Email / SMS                 | ✅                     | ✅ SendGrid + SMTP (`notify-sendgrid`, `notify-smtp`) / Twilio (`notify-twilio`) |
+| Search (MeiliSearch/Algolia)| ✅                     | ✅ MeiliSearch + Algolia (`search-meilisearch`, `search-algolia` features) |
 | RBAC / Roles                | ✅                     | ❌ Não implementado               |
 | Multi-currency              | ✅                     | 🟡 Parcial                        |
 | Multi-language              | ✅                     | ❌ Não implementado               |
@@ -218,12 +218,71 @@ Copie `.env.example` para `.env` e ajuste conforme necessário:
 | `REDIS_URL`           | `redis://127.0.0.1`                             | URL do Redis (somente quando `BUS_DRIVER=redis`).          |
 | `AWS_REGION`          | `us-east-1`                                     | Região AWS (somente quando `BUS_DRIVER=sqs`).              |
 | `AWS_SQS_URL`         | *(obrigatório para sqs)*                        | URL da fila SQS (somente quando `BUS_DRIVER=sqs`).         |
+| **OAuth Social Login** (Cargo feature `auth-google` / `auth-facebook` / `auth-github`) | | |
+| `GOOGLE_CLIENT_ID`    | *(obrigatório para Google OAuth)*               | OAuth2 Client ID da aplicação Google.                      |
+| `GOOGLE_CLIENT_SECRET`| *(obrigatório para Google OAuth)*               | OAuth2 Client Secret da aplicação Google.                  |
+| `FACEBOOK_CLIENT_ID`  | *(obrigatório para Facebook OAuth)*             | OAuth2 Client ID da aplicação Facebook.                    |
+| `FACEBOOK_CLIENT_SECRET` | *(obrigatório para Facebook OAuth)*          | OAuth2 Client Secret da aplicação Facebook.                |
+| `GITHUB_CLIENT_ID`    | *(obrigatório para GitHub OAuth)*               | OAuth2 Client ID da aplicação GitHub.                      |
+| `GITHUB_CLIENT_SECRET`| *(obrigatório para GitHub OAuth)*               | OAuth2 Client Secret da aplicação GitHub.                  |
+| **Notifications** (Cargo feature `notify-sendgrid` / `notify-smtp` / `notify-twilio`) | | |
+| `SENDGRID_API_KEY`    | *(obrigatório para SendGrid)*                   | API key do SendGrid (começa com `SG.`).                    |
+| `SENDGRID_FROM`       | `noreply@example.com`                           | Endereço de remetente padrão do SendGrid.                  |
+| `SMTP_HOST`           | *(obrigatório para SMTP)*                       | Hostname do servidor SMTP.                                 |
+| `SMTP_PORT`           | `587`                                           | Porta SMTP.                                                |
+| `SMTP_USERNAME`       | *(obrigatório para SMTP)*                       | Username SMTP.                                             |
+| `SMTP_PASSWORD`       | *(obrigatório para SMTP)*                       | Password SMTP.                                             |
+| `SMTP_FROM`           | `noreply@example.com`                           | Endereço de remetente padrão SMTP.                         |
+| `TWILIO_ACCOUNT_SID`  | *(obrigatório para Twilio)*                     | Account SID do Twilio.                                     |
+| `TWILIO_AUTH_TOKEN`   | *(obrigatório para Twilio)*                     | Auth Token do Twilio.                                      |
+| `TWILIO_FROM`         | *(obrigatório para Twilio)*                     | Número de telefone ou Messaging Service SID Twilio.        |
+| **Search** (Cargo feature `search-meilisearch` / `search-algolia`) | | |
+| `MEILISEARCH_URL`     | `http://localhost:7700`                         | URL do servidor MeiliSearch.                               |
+| `MEILISEARCH_API_KEY` | *(opcional)*                                    | API key do MeiliSearch.                                    |
+| `ALGOLIA_APP_ID`      | *(obrigatório para Algolia)*                    | Application ID do Algolia.                                 |
+| `ALGOLIA_ADMIN_KEY`   | *(obrigatório para Algolia)*                    | Admin API Key do Algolia (para indexação).                 |
+| `ALGOLIA_SEARCH_KEY`  | *(opcional)*                                    | Search-only API Key do Algolia (para buscas).              |
 
 ### Gerar JWT_SECRET seguro
 
 ```bash
 openssl rand -hex 64
 ```
+
+---
+
+### Cargo Features Opcionais
+
+As funcionalidades de OAuth social login, notificações e busca são compiladas somente quando o Cargo feature correspondente é ativado:
+
+```bash
+# Compilar com suporte completo (OAuth + notificações + busca + Redis)
+cargo build --features full
+
+# Apenas OAuth com Google e GitHub
+cargo build --features "auth-google,auth-github"
+
+# Apenas email via SMTP
+cargo build --features "notify-smtp"
+
+# Apenas MeiliSearch
+cargo build --features "search-meilisearch"
+```
+
+| Feature              | Ativa                           | Dependência adicionada |
+|----------------------|---------------------------------|------------------------|
+| `auth-google`        | GoogleOAuthProvider             | `reqwest`              |
+| `auth-facebook`      | FacebookOAuthProvider           | `reqwest`              |
+| `auth-github`        | GitHubOAuthProvider             | `reqwest`              |
+| `auth-social`        | Todos os providers acima        | `reqwest`              |
+| `notify-sendgrid`    | SendGridNotificationProvider    | `reqwest`              |
+| `notify-smtp`        | SmtpNotificationProvider        | `lettre`               |
+| `notify-twilio`      | TwilioNotificationProvider      | `reqwest`              |
+| `notifications`      | Todos os providers acima        | `reqwest`, `lettre`    |
+| `search-meilisearch` | MeiliSearchProvider             | `reqwest`              |
+| `search-algolia`     | AlgoliaSearchProvider           | `reqwest`              |
+| `search`             | Todos os providers acima        | `reqwest`              |
+| `full`               | Tudo acima + `distributed`      | todos                  |
 
 ---
 
@@ -633,13 +692,16 @@ curl -X POST http://localhost:9000/admin/products \
 | **PayPal OAuth2** | Obtenção automática de access token na inicialização do plugin |
 | **Event Bus** | Publish/subscribe de eventos de domínio; drivers `local` (in-process) e `redis` (real, via feature `redis-bus`); `subscribe()` retorna `SubscriptionHandle` com `cancel()`; `AuditInterceptor` para auditoria em banco |
 | **Workflows / Sagas** | Orquestração com steps, compensações (rollback) e persistência; `execute_persistent()` com idempotência via `transaction_id`; `execute_persistent_with_events()` publica eventos no EventBus após conclusão/falha |
+| **OAuth Social Login** | `OAuthProvider` trait + Google, Facebook, GitHub implementations em `src/auth/providers/`; `OAuthService` em `src/auth/oauth_service.rs`; migração `20260309000002_oauth_users.sql`; features `auth-google`, `auth-facebook`, `auth-github` |
+| **Notifications** | `NotificationProvider` trait + SendGrid HTTP API (`notify-sendgrid`), SMTP via lettre (`notify-smtp`), Twilio SMS (`notify-twilio`); `NotificationService` registry em `src/notifications/` |
+| **Search** | `SearchProvider` trait + MeiliSearch REST client (`search-meilisearch`), Algolia REST client (`search-algolia`); `SearchService` em `src/search/`; operações: `index_documents`, `delete_documents`, `search` |
 
 ### 🟡 Parcialmente Implementado
 
 | Funcionalidade | Estado |
 |----------------|--------|
 | **Multi-moeda** | Tabela e rotas de listagem; sem conversão automática |
-| **OAuth Providers** | Estrutura de rota presente; apenas email/password funciona |
+| **OAuth Providers** | Google, Facebook, GitHub implementados via Cargo features; apenas email/password ativo por padrão |
 | **Fulfillment Providers** | Listagem; sem integração com transportadoras |
 
 ---
@@ -677,11 +739,8 @@ As seguintes funcionalidades existem no MedusaJS mas **ainda não estão impleme
 | Funcionalidade | Impacto |
 |----------------|---------|
 | **Scheduled Jobs** | Sem tarefas agendadas (expirar descontos, etc.) |
-| **Email / SMS** | Sem envio de emails transacionais ou SMS |
-| **Full-text Search** | Sem integração com MeiliSearch ou Algolia |
 | **Redis Cache** | Apenas cache in-process (não distribuído) |
 | **RBAC** | Sem controle de acesso baseado em roles |
-| **OAuth social** | Google, GitHub, etc. não implementados |
 | **Multi-language** | Traduções e internacionalização ausentes |
 | **Admin Dashboard** | Sem UI admin (use o dashboard do MedusaJS apontando para esta API) |
 | **Store Credits (admin)** | CRUD de créditos de loja ausente |
@@ -755,7 +814,13 @@ medusa_rust/
 │   ├── auth/
 │   │   ├── argon.rs         # Hashing Argon2
 │   │   ├── jwt.rs           # Geração/validação de JWT
-│   │   └── mod.rs           # Middleware de autenticação
+│   │   ├── oauth.rs         # Trait OAuthProvider + tipos (OAuthProfile, OAuthTokens)
+│   │   ├── oauth_service.rs # OAuthService — registra providers, handle_callback, upsert user
+│   │   ├── providers/
+│   │   │   ├── google.rs    # Google OAuth2 (feature: auth-google)
+│   │   │   ├── facebook.rs  # Facebook OAuth2 (feature: auth-facebook)
+│   │   │   └── github.rs    # GitHub OAuth2 (feature: auth-github)
+│   │   └── mod.rs           # Middleware de autenticação + re-exports
 │   ├── core/
 │   │   ├── cart.rs          # Lógica de carrinho
 │   │   ├── inventory.rs     # Lógica de inventário
@@ -764,6 +829,15 @@ medusa_rust/
 │   │   └── tax.rs           # Cálculo de impostos
 │   ├── plugins/
 │   │   └── mod.rs           # PluginManager (suporta providers síncronos e assíncronos)
+│   ├── notifications/
+│   │   ├── mod.rs           # NotificationProvider trait + NotificationService registry
+│   │   ├── sendgrid.rs      # SendGrid HTTP API (feature: notify-sendgrid)
+│   │   ├── smtp.rs          # SMTP via lettre (feature: notify-smtp)
+│   │   └── twilio.rs        # Twilio SMS (feature: notify-twilio)
+│   ├── search/
+│   │   ├── mod.rs           # SearchProvider trait + SearchService registry
+│   │   ├── meilisearch.rs   # MeiliSearch REST client (feature: search-meilisearch)
+│   │   └── algolia.rs       # Algolia REST client (feature: search-algolia)
 │   ├── storage/
 │   │   ├── db.rs            # Pool SQLx + migrações
 │   │   ├── s3.rs            # Cliente S3/MinIO
