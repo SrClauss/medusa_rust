@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --fg-base: 17 24 39;      /* gray-900 */
+  --bg-base: 249 250 251;   /* gray-50  */
+}

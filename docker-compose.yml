@@ -5,11 +5,13 @@
 #   minio     — S3-compatible object storage (MinIO RELEASE.2024+)
 #   mc        — MinIO client: creates the bucket + sets it to public-read
 #   app       — MedusaRust API server (build from source)
+#   admin_ui  — Admin panel (Next.js + Tailwind) served on port 7001
 #
 # Quick start:
 #   docker compose up -d
-#   # API available at http://localhost:9000
-#   # MinIO console at  http://localhost:9001  (admin / minioadmin)
+#   # API available at        http://localhost:9000
+#   # Admin panel at          http://localhost:7001
+#   # MinIO console at        http://localhost:9001  (admin / minioadmin)
 
 services:
 
@@ -100,6 +102,28 @@ services:
       MOKA_TTL_SECS:        300
     volumes:
       - ./migrations:/app/migrations:ro  # migrations are read at runtime
+
+  # ── Admin UI (Next.js) ────────────────────────────────────────────────────
+  # Builds the Next.js admin panel from frontend/admin/ and serves it on
+  # port 7001. In production you can replace this with a static export
+  # behind nginx or serve the .next/ output directly.
+  admin_ui:
+    build:
+      context: ./frontend/admin
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "7001:7001"   # Admin panel
+    environment:
+      # Public-facing API URL shown in the browser UI.
+      # Change to your public domain in production.
+      NEXT_PUBLIC_API_URL: http://localhost:9000
+      # Internal URL used by the Next.js server to proxy /api/* requests
+      # within the Docker network (not exposed to the browser).
+      INTERNAL_API_URL: http://app:9000
+      PORT: 7001
 
 volumes:
   pgdata:

@@ -1,0 +1,16 @@
+# Dependencies and build outputs
+node_modules/
+.next/
+out/
+
+# Local environment (copy .env.example → .env.local)
+.env.local
+.env.*.local
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

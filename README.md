@@ -23,6 +23,7 @@
 - [Funcionalidades Além de Rotas](#funcionalidades-além-de-rotas)
 - [O que Falta em Comparação ao MedusaJS](#o-que-falta-em-comparação-ao-medusajs)
 - [Testes](#testes)
+- [Painel Administrativo (Admin UI)](#painel-administrativo-admin-ui)
 - [Estrutura do Projeto](#estrutura-do-projeto)
 - [Contribuindo](#contribuindo)
 
@@ -71,7 +72,7 @@ MedusaRust é uma reimplementação em Rust do back-end do [MedusaJS v2](https:/
 | RBAC / Roles                | ✅                     | ✅ CRUD e rotas admin + modelos de permissão |
 | Multi-currency              | 🟡                     | 🟡 Parcial (conversões ausentes)                        |
 | Multi-language              | ✅                     | ✅ Tabela de idiomas, rotas admin e middleware de locale |
-| Admin Dashboard             | ❌ (externo)           | ❌ Use o dashboard do MedusaJS                        |
+| Admin Dashboard             | ❌ (externo)           | ✅ Painel Next.js em `frontend/admin/`             |
 | Import/Export (CSV)         | ✅                     | 🟡 Excel/ZIP wizard               |
 | Imagem Docker               | ~400 MB                | ~50 MB                            |
 | Uso de memória (idle)       | ~150 MB                | ~10 MB                            |
@@ -754,7 +755,7 @@ As seguintes funcionalidades existem no MedusaJS mas **ainda não estão impleme
 | **Redis Cache** | Apenas cache in-process (não distribuído) |
 | **RBAC** | Controlado via roles e permissões (rotas admin adicionadas) |
 | **Multi-language** | Suporte básico implementado (idiomas, traduções de produtos) |
-| **Admin Dashboard** | Sem UI admin (use o dashboard do MedusaJS apontando para esta API) |
+| **Admin Dashboard** | Sem UI admin (use o dashboard do MedusaJS apontando para esta API) | ✅ Painel Next.js incluído em `frontend/admin/` |
 | **Store Credits (admin)** | CRUD de créditos de loja ausente |
 
 ---
@@ -802,6 +803,96 @@ cargo test -- --nocapture
 
 > ⚠️ Os testes de integração do servidor exigem uma instância PostgreSQL rodando. Use `docker compose up -d postgres` antes de rodá-los.  
 > ✅ Os testes dos plugins de pagamento não precisam de banco de dados — usam `mockito` para simular as APIs externas.
+
+---
+
+## Painel Administrativo (Admin UI)
+
+O repositório inclui um painel administrativo em **Next.js + Tailwind CSS** localizado em
+`frontend/admin/`. Ele se conecta à API Rust via a variável de ambiente `NEXT_PUBLIC_API_URL`.
+
+### Início rápido (desenvolvimento local)
+
+```bash
+cd frontend/admin
+
+# Copie o arquivo de exemplo e defina a URL da API
+cp .env.example .env.local
+# edite .env.local — NEXT_PUBLIC_API_URL=http://localhost:9000
+
+npm install
+npm run dev   # abre em http://localhost:7001
+```
+
+### Subindo com Docker Compose
+
+O `docker-compose.yml` já inclui o serviço `admin_ui`. Execute:
+
+```bash
+# Sobe API + banco + storage + painel admin
+docker compose up -d
+
+# Apenas o painel (já com a API rodando)
+docker compose up -d admin_ui
+```
+
+| Serviço | URL |
+|---------|-----|
+| API MedusaRust | http://localhost:9000 |
+| Admin Panel | http://localhost:7001 |
+| MinIO console | http://localhost:9001 |
+
+### Variáveis de ambiente do frontend
+
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:9000` | URL base da API Rust |
+| `NEXT_PUBLIC_BASE_PATH` | *(vazio)* | Sub-caminho quando servido em prefixo (ex: `/admin`) |
+| `PORT` | `7001` | Porta do servidor de desenvolvimento / produção |
+
+### Sincronizando com o upstream do MedusaJS
+
+```bash
+# Atualize o repositório vendorizado do MedusaJS
+cd vendor/medusa_js
+git pull origin main
+
+# Copie o pacote admin para o diretório do frontend
+cd ../..
+cp -r vendor/medusa_js/packages/admin/. frontend/admin/
+
+# Revise as diferenças e aplique patches se necessário
+git diff frontend/admin/
+```
+
+> Para customizações, utilize uma branch separada ou patchset para que a sincronização
+> com o repositório original continue simples.
+
+### Estrutura do painel
+
+```
+frontend/admin/
+├── package.json          # Dependências e scripts npm
+├── next.config.js        # Configuração Next.js (basePath, rewrites, standalone)
+├── tailwind.config.js    # Configuração Tailwind CSS
+├── postcss.config.js
+├── tsconfig.json
+├── Dockerfile            # Imagem multi-stage para produção
+├── .env.example          # Template de variáveis de ambiente
+├── README.md             # Documentação do frontend
+└── src/
+    ├── app/
+    │   ├── layout.tsx        # Layout raiz (HTML, Tailwind globals)
+    │   ├── globals.css       # Estilos globais Tailwind
+    │   ├── page.tsx          # Redireciona / → /dashboard
+    │   ├── login/
+    │   │   └── page.tsx      # Página de login (chama /admin/auth/token)
+    │   └── dashboard/
+    │       └── page.tsx      # Dashboard com estatísticas básicas
+    ├── lib/
+    │   └── api.ts            # Instância Axios pré-configurada para a API admin
+    └── middleware.ts         # Proteção de rotas (redireciona para /login)
+```
 
 ---
 
@@ -877,8 +968,14 @@ medusa_rust/
 │           └── tests/integration_tests.rs
 ├── migrations/              # Migrações SQL (executadas automaticamente)
 ├── tests/                   # Testes de integração do servidor principal
+├── frontend/
+│   └── admin/               # Painel administrativo Next.js + Tailwind
+│       ├── src/app/         # Páginas: login, dashboard
+│       ├── src/lib/api.ts   # Cliente Axios para a API admin
+│       ├── Dockerfile       # Imagem multi-stage (Node 18 → standalone)
+│       └── .env.example     # NEXT_PUBLIC_API_URL, PORT, ...
 ├── Dockerfile               # Multi-stage: builder Rust + runtime Debian slim
-├── docker-compose.yml       # Stack completa: app + postgres + minio
+├── docker-compose.yml       # Stack completa: app + postgres + minio + admin_ui
 ├── .env.example             # Template de variáveis de ambiente
 └── IMPLEMENTATION_PLAN.md   # Plano detalhado de implementação e cobertura de rotas
 ```
