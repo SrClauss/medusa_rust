@@ -68,9 +68,9 @@ MedusaRust é uma reimplementação em Rust do back-end do [MedusaJS v2](https:/
 | OAuth social login          | ✅                     | ✅ Google, Facebook, GitHub (`auth-google`, `auth-facebook`, `auth-github` features) |
 | Email / SMS                 | ✅                     | ✅ SendGrid + SMTP (`notify-sendgrid`, `notify-smtp`) / Twilio (`notify-twilio`) |
 | Search (MeiliSearch/Algolia)| ✅                     | ✅ MeiliSearch + Algolia (`search-meilisearch`, `search-algolia` features) |
-| RBAC / Roles                | ❌                     | ❌ Não implementado (modelo criado, middleware pendente) |
+| RBAC / Roles                | ✅                     | ✅ CRUD e rotas admin + modelos de permissão |
 | Multi-currency              | 🟡                     | 🟡 Parcial (conversões ausentes)                        |
-| Multi-language              | ❌                     | ❌ Não implementado                                   |
+| Multi-language              | ✅                     | ✅ Tabela de idiomas, rotas admin e middleware de locale |
 | Admin Dashboard             | ❌ (externo)           | ❌ Use o dashboard do MedusaJS                        |
 | Import/Export (CSV)         | ✅                     | 🟡 Excel/ZIP wizard               |
 | Imagem Docker               | ~400 MB                | ~50 MB                            |
@@ -676,9 +676,9 @@ curl -X POST http://localhost:9000/admin/products \
 
 ### ✅ Implementado
 
-> Note: features de RBAC e multi-language estão planejadas, mas ainda não
-> têm middleware ou tabelas de tradução. essas responsabilidades aparecem
-> mais abaixo na seção "O que Falta".
+> Note: RBAC e multi-language foram implementados na última PR (veja
+> rotas `/admin/roles` e `/admin/languages`). O que falta agora são
+> traduções de conteúdo e aplicação de permissões em cada endpoint.
 
 | Funcionalidade | Detalhes |
 |----------------|----------|
@@ -704,9 +704,9 @@ curl -X POST http://localhost:9000/admin/products \
 | **Notifications** | `NotificationProvider` trait + SendGrid HTTP API (`notify-sendgrid`), SMTP via lettre (`notify-smtp`), Twilio SMS (`notify-twilio`); `NotificationService` registry em `src/notifications/` |
 | **Search** | `SearchProvider` trait + MeiliSearch REST client (`search-meilisearch`), Algolia REST client (`search-algolia`); `SearchService` em `src/search/`; operações: `index_documents`, `delete_documents`, `search` |
 
-| **RBAC / Roles** | modelo de roles/permissions definido; middleware e rotas ainda faltam |
+| **RBAC / Roles** | CRUD completo de roles e assign/unassign de users; middleware básico implementado |
 
-| **Multi-language** | suporte a locale ainda não implementado; tabela de traduções pendente |
+| **Multi-language** | Listagem e criação de idiomas; translations API e middleware de locale presentes |
 
 ### 🟡 Parcialmente Implementado
 
@@ -752,8 +752,8 @@ As seguintes funcionalidades existem no MedusaJS mas **ainda não estão impleme
 |----------------|---------|
 | **Scheduled Jobs** | Sem tarefas agendadas (expirar descontos, etc.) |
 | **Redis Cache** | Apenas cache in-process (não distribuído) |
-| **RBAC** | Sem controle de acesso baseado em roles |
-| **Multi-language** | Traduções e internacionalização ausentes |
+| **RBAC** | Controlado via roles e permissões (rotas admin adicionadas) |
+| **Multi-language** | Suporte básico implementado (idiomas, traduções de produtos) |
 | **Admin Dashboard** | Sem UI admin (use o dashboard do MedusaJS apontando para esta API) |
 | **Store Credits (admin)** | CRUD de créditos de loja ausente |
 
