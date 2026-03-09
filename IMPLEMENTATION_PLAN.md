@@ -1,6 +1,6 @@
 # Medusa Rust — Plano de Implementação
 
-> **Última atualização:** 2026-03-09  
+> **Última atualização:** 2026-03-09 — PR #EventBus/Sagas Gaps  
 > **Stack:** Axum + SQLx (PostgreSQL) + Moka cache + MinIO/S3 + Plugin System  
 > **Objetivo:** Port completo do Medusa JS v2 para Rust
 
@@ -17,6 +17,8 @@
 > **Nota:** Fases 1–4 implementadas: price_preferences, campaigns, fulfillment_sets, claims, exchanges, returns (extendido), workflow_executions, notifications resend, fulfillment_providers, payment_collections, refund_reasons, reservations, product_tags, product_types, payments, plugins, shipping_option_types, feature_flags, order_changes. Todos como stubs retornando JSON plausível — seguindo a convenção do projeto.
 >
 > **Fase 5 — Sistema de Plugins de Pagamento** implementada: crate `plugin_api` com trait `PaymentProvider` assíncrono + 4 plugins prontos para produção (Asaas, Mercado Pago, Stripe, PayPal).
+>
+> **Fase 6 — EventBus & Sagas (gaps corrigidos):** `subscribe()` agora retorna `SubscriptionHandle` com suporte a cancelamento; backend Redis real via feature flag `redis-bus`; `AuditInterceptor` para auditoria de eventos no banco; `WorkflowEngine` ganhou `execute_persistent()` e `execute_persistent_with_events()`; migração `20260309000001_workflow_persistence.sql` criada com `workflow_executions`, `workflow_steps` e `event_audit`.
 
 ## Cobertura de Testes
 
@@ -30,11 +32,12 @@
 | Rotas admin abrangentes | `tests/admin_routes_tests.rs` | 106 |
 | Rotas store abrangentes | `tests/store_routes_tests.rs` | 55 |
 | Rotas fases 2-4 | `tests/phase2_routes_tests.rs` | 55 |
+| **EventBus unit tests** | `src/events.rs` (mod tests) | **6** |
 | **Plugin Asaas** | `asaas_plugin` | **11** |
 | **Plugin Mercado Pago** | `mercadopago_plugin` | **11** |
 | **Plugin Stripe** | `stripe_plugin` | **12** |
 | **Plugin PayPal** | `paypal_plugin` | **12** |
-| **Total** | | **323** |
+| **Total** | | **329** |
 
 > **Meta de cobertura de testes atingida: ≥ 97%** — todos os grupos de rotas possuem pelo menos um teste de existência (not-404), autenticação (401) e método HTTP (not-405).  
 > Os testes de plugins usam `mockito` para simular as APIs externas sem necessidade de banco de dados.
@@ -86,6 +89,57 @@ crates/
 | Validação de assinatura | — | — | ✅ HMAC-SHA256 | — |
 | OAuth2 automático | — | — | — | ✅ |
 | Testes com mockito | ✅ 11 | ✅ 11 | ✅ 12 | ✅ 12 |
+
+---
+
+## Sistema de EventBus & Sagas (Fase 6)
+
+### Mudanças Implementadas
+
+#### `Cargo.toml` — Feature flags
+
+| Feature | Ativa |
+|---------|-------|
+| `local-bus` *(default)* | Backend in-process `tokio::sync::broadcast` |
+| `redis-bus` | Backend Redis pub/sub real (dep `redis = "0.24"` opcional) |
+| `local-workflows` *(default)* | Workflows in-process |
+| `redis-workflows` | Workflows com Redis |
+| `distributed` | Ativa `redis-bus` + `redis-workflows` |
+
+#### `src/events.rs`
+
+| Item | Mudança |
+|------|---------|
+| `subscribe()` | Retorna `anyhow::Result<SubscriptionHandle>` (era `anyhow::Result<()>`) — permite `handle.cancel()` sem memory leak |
+| `EventBus` struct | Campos `redis_publisher` e `redis_channel` sob `#[cfg(feature = "redis-bus")]` |
+| `publish()` | Usa Redis PUBLISH quando `redis-bus` ativo e driver é `BusDriver::Redis` |
+| `subscribe_with_id()` | Usa Redis SUBSCRIBE (AsyncPubSub) quando `redis-bus` ativo |
+| `init_redis()` | Novo método `#[cfg(feature = "redis-bus")]` — inicializa `ConnectionManager` |
+| `AuditInterceptor` | Novo interceptor que persiste todos os eventos na tabela `event_audit` |
+| Testes unitários | 6 testes em `mod tests`: handle, cancel, grouping, clear, interceptor |
+
+#### `src/sagas.rs`
+
+| Método | Descrição |
+|--------|-----------|
+| `WorkflowEngine::execute_persistent()` | Executa saga registrada com persistência e idempotência via `transaction_id` |
+| `WorkflowEngine::execute_persistent_with_events()` | Idem + publica `on_complete` ou `on_failure` no `EventBus` |
+
+#### `migrations/20260309000001_workflow_persistence.sql`
+
+| Tabela | Descrição |
+|--------|-----------|
+| `workflow_executions` | Estado global de cada execução (idempotência via `transaction_id`) |
+| `workflow_steps` | Estado de cada passo individual |
+| `event_audit` | Log de todos os eventos processados pelo `AuditInterceptor` |
+
+### Compilação sem features extras
+
+```bash
+cargo build           # apenas local-bus + local-workflows (padrão)
+cargo build --features redis-bus         # adiciona Redis publisher/subscriber
+cargo build --features distributed       # redis-bus + redis-workflows
+```
 
 ---
 
@@ -855,7 +909,9 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 | Status | Funcionalidade | Notas |
 |--------|----------------|-------|
 | ✅ | Event bus | Publish/subscribe com drivers `local`, `redis`, `sqs`; `EventHandler` trait; serde em eventos |
-| ✅ | Event subscribers | `bus.subscribe(handler)` — handlers em background tasks |
+| ✅ | Event subscribers | `bus.subscribe(handler)` — retorna `SubscriptionHandle` com `cancel()` (sem memory leak) |
+| ✅ | Redis backend | Backend real com feature flag `redis-bus`; `EventBus::init_redis()` inicializa `ConnectionManager` |
+| ✅ | AuditInterceptor | Persiste todos os eventos na tabela `event_audit` via `sqlx::PgPool` |
 | ❌ | Scheduled jobs | Cron-like tasks |
 | 🟡 | Webhooks | Ingestion via `/hooks/payment/:provider`; envio a endpoints externos pendente |
 
@@ -865,6 +921,10 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 | ✅ | Workflow engine | `WorkflowEngine` com registro e execução de sagas |
 | ✅ | Compensation (saga) | `Saga` com rollback em ordem reversa |
 | ✅ | Step functions | `Saga::builder().step(action, compensation).build()` |
+| ✅ | Persistência | `run_persistent()` com idempotência via `transaction_id` |
+| ✅ | `execute_persistent()` | `WorkflowEngine` delega para `run_persistent()` por nome de saga |
+| ✅ | `execute_persistent_with_events()` | Executa saga persistida + publica eventos de conclusão/falha no EventBus |
+| ✅ | Migração SQL | `20260309000001_workflow_persistence.sql`: `workflow_executions`, `workflow_steps`, `event_audit` |
 
 ### Autenticação Avançada
 | Status | Funcionalidade | Notas |
@@ -959,6 +1019,9 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 - ✅ promotions, campaigns, promotion_rules, promotion_application_methods (migração 20260307000011)
 - ✅ notifications (migração 20260307000012)
 - ✅ exchanges, refund_reasons, price_preferences (migração 20260307000013)
+- ✅ plugins (migração 20260307000014)
+- ✅ webhooks (migração 20260307000015)
+- ✅ **workflow_executions, workflow_steps, event_audit** (migração 20260309000001)
 
 ### Tabelas Ainda Faltando
 - ❌ feature_flags
@@ -967,7 +1030,6 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 - ❌ translations
 - ❌ user_roles
 - ❌ views, view_configurations
-- ❌ workflows, workflow_executions
 - ❌ reservations
 - ❌ service_zones
 
@@ -991,10 +1053,10 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 6. ✅ **Notifications** - Módulo de notificações (DB-backed)
 7. ✅ **Batch Jobs** - Jobs em lote (DB-backed)
 
-### Fase 3: Extensibilidade (Média Prioridade)
-1. ❌ **Plugin System** - Sistema de plugins
-2. ❌ **Event Bus** - Sistema de eventos
-3. ❌ **Webhooks** - Notificações externas
+### Fase 3: Extensibilidade (Média Prioridade) — ✅ CONCLUÍDA
+1. ✅ **Plugin System** - Sistema de plugins (Fase 5)
+2. ✅ **Event Bus** - Sistema de eventos com Redis real + SubscriptionHandle + AuditInterceptor
+3. 🟡 **Webhooks** - Ingestion implementada; envio externo pendente
 4. ✅ **API Keys** - Autenticação de integrações (DB-backed)
 
 ### Fase 4: Integrações (Baixa Prioridade)
@@ -1006,7 +1068,7 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 
 ### Fase 5: Enterprise (Baixa Prioridade)
 1. ✅ **Multi-store** - Múltiplas lojas (DB-backed)
-2. ❌ **Workflows** - Automação de processos
+2. ✅ **Workflows** - `execute_persistent()` + `execute_persistent_with_events()` + migração SQL
 3. ❌ **Translations** - Internacionalização
 4. ❌ **Store Credits** - Crédito de loja
 5. ❌ **Advanced Analytics** - Relatórios

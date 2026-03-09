@@ -5,6 +5,17 @@
 
 ---
 
+## ✅ CONCLUÍDO — EventBus & Sagas (Fase 6)
+
+Implementado via `PROMPT_CORRECAO_GAPS_EVENTBUS_SAGAS.md`:
+
+- ✅ `Cargo.toml`: features `local-bus`, `redis-bus`, `local-workflows`, `redis-workflows`, `distributed` + dep `redis = "0.24"` opcional
+- ✅ `src/events.rs`: `subscribe()` retorna `SubscriptionHandle`; backend Redis real com `#[cfg(feature = "redis-bus")]`; `AuditInterceptor`; 6 testes unitários
+- ✅ `src/sagas.rs`: `WorkflowEngine::execute_persistent()` e `execute_persistent_with_events()`
+- ✅ `migrations/20260309000001_workflow_persistence.sql`: `workflow_executions`, `workflow_steps`, `event_audit`
+
+---
+
 ## FASE 1: Completar Rotas Admin Faltantes
 
 ### 1.1 Customers (6 rotas faltando)

@@ -294,6 +294,61 @@ impl WorkflowEngine {
     pub fn get(&self, name: &str) -> Option<&Saga> {
         self.sagas.get(name)
     }
+
+    /// Execute a saga with persistent storage and idempotency.
+    ///
+    /// - `transaction_id`: idempotency key (use `uuid::Uuid::new_v4().to_string()`)
+    /// - `storage`: implementation of [`SagaStorage`] (e.g. [`PostgresSagaStorage`])
+    pub async fn execute_persistent(
+        &self,
+        name: &str,
+        transaction_id: String,
+        ctx: SagaContext,
+        storage: &dyn SagaStorage,
+    ) -> Result<SagaOutcome> {
+        let saga = self.sagas.get(name)
+            .ok_or_else(|| anyhow::anyhow!("No saga registered with name '{}'", name))?;
+        saga.run_persistent(transaction_id, ctx, storage).await
+    }
+
+    /// Execute a saga with persistent storage and emit domain events on the
+    /// [`crate::events::EventBus`] after completion or compensation.
+    ///
+    /// - `on_complete`: event published when the saga completes successfully.
+    /// - `on_failure`: event published when the saga is compensated (rolled back).
+    pub async fn execute_persistent_with_events(
+        &self,
+        name: &str,
+        transaction_id: String,
+        ctx: SagaContext,
+        storage: &dyn SagaStorage,
+        event_bus: &crate::events::EventBus,
+        on_complete: Option<crate::events::Event>,
+        on_failure: Option<crate::events::Event>,
+    ) -> Result<SagaOutcome> {
+        let outcome = self.execute_persistent(name, transaction_id, ctx, storage).await?;
+
+        match &outcome {
+            SagaOutcome::Completed(_) => {
+                if let Some(event) = on_complete {
+                    if let Err(e) = event_bus.publish(event).await {
+                        tracing::warn!(saga = %name, error = %e, "Failed to publish completion event");
+                    }
+                }
+                tracing::info!(saga = %name, "Saga completed, event published");
+            }
+            SagaOutcome::Compensated { failed_step, .. } => {
+                if let Some(event) = on_failure {
+                    if let Err(e) = event_bus.publish(event).await {
+                        tracing::warn!(saga = %name, error = %e, "Failed to publish failure event");
+                    }
+                }
+                tracing::warn!(saga = %name, step = %failed_step, "Saga compensated, event published");
+            }
+        }
+
+        Ok(outcome)
+    }
 }
 
 
