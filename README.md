@@ -68,10 +68,10 @@ MedusaRust é uma reimplementação em Rust do back-end do [MedusaJS v2](https:/
 | OAuth social login          | ✅                     | ✅ Google, Facebook, GitHub (`auth-google`, `auth-facebook`, `auth-github` features) |
 | Email / SMS                 | ✅                     | ✅ SendGrid + SMTP (`notify-sendgrid`, `notify-smtp`) / Twilio (`notify-twilio`) |
 | Search (MeiliSearch/Algolia)| ✅                     | ✅ MeiliSearch + Algolia (`search-meilisearch`, `search-algolia` features) |
-| RBAC / Roles                | ✅                     | ❌ Não implementado               |
-| Multi-currency              | ✅                     | 🟡 Parcial                        |
-| Multi-language              | ✅                     | ❌ Não implementado               |
-| Admin Dashboard             | ✅ (Medusa Admin)      | ❌ Use o dashboard do MedusaJS    |
+| RBAC / Roles                | ❌                     | ❌ Não implementado (modelo criado, middleware pendente) |
+| Multi-currency              | 🟡                     | 🟡 Parcial (conversões ausentes)                        |
+| Multi-language              | ❌                     | ❌ Não implementado                                   |
+| Admin Dashboard             | ❌ (externo)           | ❌ Use o dashboard do MedusaJS                        |
 | Import/Export (CSV)         | ✅                     | 🟡 Excel/ZIP wizard               |
 | Imagem Docker               | ~400 MB                | ~50 MB                            |
 | Uso de memória (idle)       | ~150 MB                | ~10 MB                            |
