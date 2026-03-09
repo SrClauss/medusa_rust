@@ -1,0 +1,136 @@
+# Prompt: Incluir Painel Admin & Store Front do MedusaJS no Repositório
+
+## Contexto
+
+O repositório `medusa_rust` contém apenas o backend em Rust. quando se
+clona o repositório oficial do MedusaJS, ele traz o backend Node.js,
+mas nós **não queremos** o Node; queremos somente o **painel
+administrativo** em Next.js + Tailwind. não haverá storefront neste
+projeto.
+
+O objetivo deste prompt é orientar um desenvolvedor a copiar o painel
+administrativo para dentro do workspace Rust, configurá‑lo para apontar
+às APIs corretas e integrá‑lo ao fluxo de desenvolvimento/CI do
+`medusa_rust` sem arrastar todo o backend em Node.
+
+## Filosofia do Projeto
+
+Este é um port do MedusaJS para Rust. todavia, os frontends são
+independentes da linguagem do servidor. NÃO reescreva nada em outra
+tecnologia; basta **copiar** os sources existentes e mantê‑los quase
+idênticos ao upstream. O prompt deve:
+
+1. Referenciar os diretórios originais em `vendor/medusa_js/packages/`.
+2. Explicar como extrair apenas o pacote `admin`.
+3. Integrar builds estáticos ao Dockerfile e ao serve do Rust.
+4. Prever configuração de ambiente para apontar o frontend para a API
+   Rust (variáveis `NEXT_PUBLIC_API_URL`).
+5. Fornecer instruções de desenvolvimento locais e de deploy.
+
+## Tarefas
+
+### 1. Estrutura de Pastas
+
+Dentro do workspace crie a pasta:
+
+```
+medusa_rust/
+└── frontend/
+    └── admin/        # painel administrativo Next.js
+```
+
+Ela deve conter `package.json`, `next.config.js` etc.; o
+conteúdo inicial pode ser copiado de `vendor/medusa_js/packages/admin`.
+(remova quaisquer referências ao storefront).
+
+3. Ajustar `package.json` do admin
+
+- Remover dependências `medusa-*` que não são necessárias (ex: core
+de backend). manter `react`, `next`, `tailwind`, `@medusajs/` libs.
+- Adicionar scripts:
+  ```json
+  "start": "next start -p $PORT",
+  "dev": "next dev -p $PORT",
+  "build": "next build"
+  ```
+- Definir `homepage`/`basePath` se for servir em subdiretório.
+
+### 3. Configuração de Ambiente
+
+O painel usa a variável `NEXT_PUBLIC_API_URL` para apontar para a
+API. Documente no `README.md` ou em `.env.example` do frontend:
+
+```
+NEXT_PUBLIC_API_URL=http://localhost:9000
+```
+
+### 4. Docker & CI
+
+No `Dockerfile` e `docker-compose.yml` do `medusa_rust`, adicione
+etapas de build estático:
+
+```docker
+# no Dockerfile
+COPY frontend/admin ./frontend/admin
+WORKDIR /app/frontend/admin
+RUN npm ci && npm run build
+
+
+# depois copiar os builds para a imagem final ou servi-los com nginx
+```
+
+E no compose, inclua volume para desenvolvimento ou simplesmente
+execute `npm run dev` em containers separados.
+
+### 5. Servindo os Builds
+
+Você pode:
+
+- Inserir um novo sub‑serviço `admin_ui` no docker-compose,
+  baseado em `node:18` que roda `npm run build && npm run start`.
+- Ou, para simplificar, copiar os arquivos `/.next` e `/_next` para a imagem
+  Rust e servir via `axum` com `tower_http::services::ServeDir`.
+
+Explique ambos os métodos e ofereça exemplos de endpoints.
+
+### 6. Sincronização Upstream
+
+Descreva um procedimento simples:
+
+```bash
+# atualizar o frontend do painel
+cd vendor/medusa_js/packages/admin
+git pull origin main
+cp -r . ../../../frontend/admin
+```
+
+E mencionar uso de patch ou diff para acompanhar as diferenças.
+
+### 7. Critérios de Aceitação
+
+- [ ] `cargo build` ainda compila o backend mesmo com as pastas `frontend`
+- [ ] É possível executar o painel admin localmente com `npm run dev`
+  apontando para a API Rust sem qualquer mudança de código
+- [ ] `docker compose up` sobe o backend e um contêiner de frontend
+  que se comunica com ele
+- [ ] Instruções no README mostram como iniciar/atualizar os frontends
+- [ ] Não há dependência de Node no build de produção do backend
+
+### 8. Observações
+
+- Não modifique nenhum arquivo do frontend que não seja necessário para o
+  ajuste de URLs ou build; o objetivo é manter o código o mais fiel ao
+  upstream possível.
+- Se quiser customizar, utilize branch separada ou patchset para que a
+  sincronização com o repo original continue simples.
+
+---
+
+Com este prompt você terá uma explicação clara para "pegar só o admin e
+store front, sem o backend Node" e integrá‑los limpidamente no projeto
+Rust.   
+
+**Concordo com a abordagem**: copiar apenas os dois apps e tratá‑los como
+módulos consumidores da API é a forma mais pragmática e evita a bagunça
+de clonar todo o repositório JS.  O prompt acima orienta exatamente
+isso.
