@@ -6,6 +6,7 @@ use axum::{
 use serde::Deserialize;
 use uuid::Uuid;
 use crate::{error::AppError, state::AppState};
+use crate::events::{Event, PaymentCapturedEvent};
 
 #[derive(Debug, Deserialize)]
 pub struct ListParams {
@@ -46,14 +47,27 @@ pub async fn get(
 }
 
 pub async fn capture(
-    State(_): State<AppState>,
+    State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(_payload): Json<serde_json::Value>,
+    Json(payload): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    let amount = payload.get("amount").and_then(|v| v.as_i64());
+
+    // Publish PaymentCaptured event
+    if let Err(e) = state.event_bus.publish(Event::PaymentCaptured(PaymentCapturedEvent {
+        payment_id: id,
+        amount,
+        currency_code: payload.get("currency_code").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        provider_id: payload.get("provider_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
+    })).await {
+        tracing::warn!(error = %e, "Failed to publish PaymentCaptured event");
+    }
+
     Ok(Json(serde_json::json!({
         "payment": {
             "id": id,
             "status": "captured",
+            "amount": amount,
             "created_at": chrono::Utc::now(),
             "updated_at": chrono::Utc::now(),
         }

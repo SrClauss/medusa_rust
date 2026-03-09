@@ -5,7 +5,7 @@ use axum::http::{HeaderMap, StatusCode};
 use serde_json::Value;
 use crate::{error::AppError, state::AppState};
 use crate::core::payment::WebhookPayload;
-use crate::events::{EventBus, Event, EmitOptions};
+use crate::events::{Event, EmitOptions};
 
 /// Generic payment provider webhook endpoint.
 /// POST /hooks/payment/:provider
@@ -33,9 +33,8 @@ pub async fn payment_provider_webhook(
     if let Some(p) = state.plugin_mgr.lock().await.payment_provider(&provider) {
         match p.get_webhook_action_and_data(&payload) {
             Ok(result) => {
-                // emit internal event for processing
-                let bus = EventBus::new();
-                bus.emit(
+                // emit internal event using the shared bus from AppState
+                state.event_bus.emit(
                     Event::PaymentWebhook(crate::events::PaymentWebhookEvent { provider, payload: serde_json::to_value(&result).map_err(|e| AppError::Internal(e.to_string()))? }),
                     EmitOptions { delay: None, retries: 1 },
                 ).await;

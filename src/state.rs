@@ -8,6 +8,7 @@ use serde_json::Value;
 use sqlx::PgPool;
 use std::sync::Arc;
 
+use crate::events::EventBus;
 use crate::storage::s3::StorageBackend;
 
 // ─── Storage Config ───────────────────────────────────────────────────────────
@@ -127,6 +128,10 @@ pub struct AppState {
     /// protected by a mutex since registration happens infrequently but reads
     /// may occur on every request.
     pub plugin_mgr: Arc<tokio::sync::Mutex<crate::plugins::PluginManager>>,
+
+    /// Shared event bus — use `state.event_bus.publish(event).await` to emit
+    /// domain events from any handler.
+    pub event_bus: Arc<EventBus>,
 }
 
 // Compile-time proof that AppState satisfies Axum's requirements.
@@ -134,3 +139,17 @@ const _: fn() = || {
     fn assert_send_sync<T: Send + Sync>() {}
     assert_send_sync::<AppState>();
 };
+
+// ─── StateExt ────────────────────────────────────────────────────────────────
+
+/// Extension trait so Axum extractors can call `state.event_bus()` instead of
+/// accessing the field directly.
+pub trait StateExt {
+    fn event_bus(&self) -> &EventBus;
+}
+
+impl StateExt for AppState {
+    fn event_bus(&self) -> &EventBus {
+        &self.event_bus
+    }
+}

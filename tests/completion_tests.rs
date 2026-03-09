@@ -94,6 +94,7 @@ fn make_state() -> AppState {
         auth_service: Arc::new(DummyAuth),
         payment_methods: Arc::new(tokio::sync::Mutex::new(Vec::new())),
         plugin_mgr: Arc::new(tokio::sync::Mutex::new(medusa_rust::plugins::PluginManager::new())),
+        event_bus: Arc::new(medusa_rust::EventBus::new()),
     }
 }
 

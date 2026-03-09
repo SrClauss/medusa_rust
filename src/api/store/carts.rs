@@ -3,6 +3,7 @@ use axum::{extract::{Path, State}, http::StatusCode, Json};
 use sqlx::Row;
 use uuid::Uuid;
 use crate::{error::AppError, state::AppState};
+use crate::events::{Event, OrderPlacedEvent, CartCompletedEvent};
 
 // ─── Cart helpers ─────────────────────────────────────────────────────────────
 
@@ -280,13 +281,32 @@ pub async fn complete(State(state): State<AppState>, Path(cart_id): Path<Uuid>) 
     let order_id = Uuid::new_v4();
     let display_id: i32 = sqlx::query_scalar("SELECT COALESCE(MAX(display_id), 0) + 1 FROM orders").fetch_one(&*state.db).await?;
     sqlx::query("INSERT INTO orders (id, status, fulfillment_status, payment_status, display_id, cart_id, customer_id, email, region_id, currency_code, created_at, updated_at) VALUES ($1,'pending','not_fulfilled','awaiting',$2,$3,$4,$5,$6,$7,NOW(),NOW())")
-        .bind(order_id).bind(display_id).bind(cart_id).bind(customer_id).bind(email).bind(region_id).bind(currency).execute(&*state.db).await?;
+        .bind(order_id).bind(display_id).bind(cart_id).bind(customer_id).bind(email).bind(region_id).bind(&currency).execute(&*state.db).await?;
 
     // Mark cart as completed
     sqlx::query("UPDATE carts SET completed_at = NOW(), updated_at = NOW() WHERE id = $1").bind(cart_id).execute(&*state.db).await?;
 
     // Move line items to the order
     sqlx::query("UPDATE line_items SET order_id = $1, updated_at = NOW() WHERE cart_id = $2 AND order_id IS NULL").bind(order_id).bind(cart_id).execute(&*state.db).await?;
+
+    // Publish domain events
+    let total = cart["total"].as_i64().unwrap_or(0);
+    if let Err(e) = state.event_bus.publish(Event::CartCompleted(CartCompletedEvent {
+        cart_id,
+        customer_id: Some(customer_id),
+    })).await {
+        tracing::warn!(error = %e, "Failed to publish CartCompleted event");
+    }
+    if let Err(e) = state.event_bus.publish(Event::OrderPlaced(OrderPlacedEvent {
+        order_id,
+        display_id,
+        customer_id,
+        email: email.to_string(),
+        currency_code: currency.clone(),
+        total,
+    })).await {
+        tracing::warn!(error = %e, "Failed to publish OrderPlaced event");
+    }
 
     Ok(Json(serde_json::json!({"type":"order","data":{
         "id":order_id, "status":"pending",
