@@ -144,6 +144,17 @@ pub const ADMIN_GIFT_CARDS_ID: &str = "/admin/gift-cards/{id}";
 pub const ADMIN_CURRENCIES: &str = "/admin/currencies";
 pub const ADMIN_CURRENCIES_CODE: &str = "/admin/currencies/{code}";
 
+// Roles (RBAC)
+pub const ADMIN_ROLES: &str = "/admin/roles";
+pub const ADMIN_ROLES_ID: &str = "/admin/roles/{id}";
+pub const ADMIN_USERS_ID_ROLES: &str = "/admin/users/{user_id}/roles";
+pub const ADMIN_USERS_ID_ROLES_ROLE_ID: &str = "/admin/users/{user_id}/roles/{role_id}";
+
+// Languages (Multi-language)
+pub const ADMIN_LANGUAGES: &str = "/admin/languages";
+pub const ADMIN_LANGUAGES_CODE: &str = "/admin/languages/{code}";
+pub const ADMIN_PRODUCTS_ID_TRANSLATIONS: &str = "/admin/products/{id}/translations";
+
 // Batch Jobs
 pub const ADMIN_BATCH_JOBS: &str = "/admin/batch-jobs";
 pub const ADMIN_BATCH_JOBS_ID: &str = "/admin/batch-jobs/{id}";

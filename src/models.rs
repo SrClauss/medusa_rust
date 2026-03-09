@@ -924,3 +924,40 @@ pub struct Refund {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+// ─── RBAC ─────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Role {
+    pub id: Uuid,
+    pub name: String,
+    pub permissions: Vec<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UserRole {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub role_id: Uuid,
+    pub created_at: DateTime<Utc>,
+}
+
+// ─── Multi-language ───────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Language {
+    pub code: String,
+    pub name: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ProductTranslation {
+    pub id: Uuid,
+    pub product_id: Uuid,
+    pub language_code: String,
+    pub title: Option<String>,
+    pub description: Option<String>,
+}

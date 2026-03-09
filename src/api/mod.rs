@@ -14,7 +14,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(admin::admin_router(state.clone()))
         .merge(store::store_router(state.clone()))
         // webhook receiver for payment providers
-        .route("/hooks/payment/:provider", post(hooks::payment_provider_webhook))
+        .route("/hooks/payment/{provider}", post(hooks::payment_provider_webhook))
         // Wizard / Importer endpoints
         .route(WIZARD_IMPORT, post(wizard_import))
         .route(WIZARD_IMPORT_STATUS_ID, get(wizard_import_status))
