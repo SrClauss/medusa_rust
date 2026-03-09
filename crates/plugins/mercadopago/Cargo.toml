@@ -1,0 +1,20 @@
+[package]
+name = "mercadopago_plugin"
+version = "0.1.0"
+edition = "2021"
+description = "MedusaRust payment plugin for Mercado Pago"
+license = "MIT"
+
+[dependencies]
+plugin_api  = { path = "../../plugin_api" }
+async-trait = "0.1"
+reqwest     = { version = "0.12", features = ["json"] }
+serde       = { version = "1.0", features = ["derive"] }
+serde_json  = "1.0"
+anyhow      = "1.0"
+tokio       = { version = "1", features = ["full"] }
+tracing     = "0.1"
+
+[dev-dependencies]
+mockito     = "1.4"
+tokio       = { version = "1", features = ["full"] }

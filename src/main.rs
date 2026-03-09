@@ -21,6 +21,13 @@ use state::{AppState, StorageConfig};
 use crate::api::auth::EmailPasswordService;
 use storage::{cache::build_cache, db::create_pool, s3::S3Storage};
 
+// Payment plugins
+use plugin_api::PaymentProvider as _;
+use asaas_plugin::AsaasPlugin;
+use mercadopago_plugin::MercadoPagoPlugin;
+use stripe_plugin::StripePlugin;
+use paypal_plugin::PayPalPlugin;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::registry()
@@ -77,6 +84,83 @@ async fn main() -> anyhow::Result<()> {
         let mut pm = state.plugin_mgr.lock().await;
         crate::plugins::register_builtin_plugins(&mut pm, &state)
             .expect("failed to register built-in plugins");
+    }
+
+    // ── Async payment plugins ─────────────────────────────────────────────────
+    {
+        let mut pm = state.plugin_mgr.lock().await;
+
+        // Asaas
+        let mut asaas = AsaasPlugin::new();
+        let mut asaas_cfg = std::collections::HashMap::new();
+        if let Ok(key) = std::env::var("ASAAS_API_KEY") {
+            asaas_cfg.insert("api_key".to_string(), key);
+        }
+        if let Ok(url) = std::env::var("ASAAS_BASE_URL") {
+            asaas_cfg.insert("base_url".to_string(), url);
+        }
+        if !asaas_cfg.is_empty() {
+            if let Err(e) = asaas.initialize(asaas_cfg).await {
+                tracing::warn!("Asaas plugin skipped: {e}");
+            } else {
+                pm.register_async_payment_provider(asaas);
+                tracing::info!("Asaas payment plugin registered");
+            }
+        }
+
+        // Mercado Pago
+        let mut mp = MercadoPagoPlugin::new();
+        let mut mp_cfg = std::collections::HashMap::new();
+        if let Ok(token) = std::env::var("MP_ACCESS_TOKEN") {
+            mp_cfg.insert("access_token".to_string(), token);
+        }
+        if !mp_cfg.is_empty() {
+            if let Err(e) = mp.initialize(mp_cfg).await {
+                tracing::warn!("MercadoPago plugin skipped: {e}");
+            } else {
+                pm.register_async_payment_provider(mp);
+                tracing::info!("MercadoPago payment plugin registered");
+            }
+        }
+
+        // Stripe
+        let mut stripe = StripePlugin::new();
+        let mut stripe_cfg = std::collections::HashMap::new();
+        if let Ok(key) = std::env::var("STRIPE_SECRET_KEY") {
+            stripe_cfg.insert("secret_key".to_string(), key);
+        }
+        if let Ok(secret) = std::env::var("STRIPE_WEBHOOK_SECRET") {
+            stripe_cfg.insert("webhook_secret".to_string(), secret);
+        }
+        if !stripe_cfg.is_empty() {
+            if let Err(e) = stripe.initialize(stripe_cfg).await {
+                tracing::warn!("Stripe plugin skipped: {e}");
+            } else {
+                pm.register_async_payment_provider(stripe);
+                tracing::info!("Stripe payment plugin registered");
+            }
+        }
+
+        // PayPal
+        let mut paypal = PayPalPlugin::new();
+        let mut paypal_cfg = std::collections::HashMap::new();
+        if let Ok(id) = std::env::var("PAYPAL_CLIENT_ID") {
+            paypal_cfg.insert("client_id".to_string(), id);
+        }
+        if let Ok(secret) = std::env::var("PAYPAL_CLIENT_SECRET") {
+            paypal_cfg.insert("client_secret".to_string(), secret);
+        }
+        if let Ok(url) = std::env::var("PAYPAL_BASE_URL") {
+            paypal_cfg.insert("base_url".to_string(), url);
+        }
+        if !paypal_cfg.is_empty() {
+            if let Err(e) = paypal.initialize(paypal_cfg).await {
+                tracing::warn!("PayPal plugin skipped: {e}");
+            } else {
+                pm.register_async_payment_provider(paypal);
+                tracing::info!("PayPal payment plugin registered");
+            }
+        }
     }
 
     // ── CORS ──────────────────────────────────────────────────────────────────

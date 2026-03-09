@@ -1,3 +1,14 @@
+[workspace]
+members = [
+    ".",
+    "crates/plugin_api",
+    "crates/plugins/asaas",
+    "crates/plugins/mercadopago",
+    "crates/plugins/stripe",
+    "crates/plugins/paypal",
+]
+resolver = "2"
+
 [package]
 name = "medusa_rust"
 version = "0.1.0"
@@ -80,6 +91,13 @@ hex               = "0.4"
 aws-sdk-s3           = "1"
 aws-config           = "1"
 aws-credential-types = "1"
+
+# ── Payment plugins ────────────────────────────────────────────────────────────
+plugin_api           = { path = "crates/plugin_api" }
+asaas_plugin         = { path = "crates/plugins/asaas" }
+mercadopago_plugin   = { path = "crates/plugins/mercadopago" }
+stripe_plugin        = { path = "crates/plugins/stripe" }
+paypal_plugin        = { path = "crates/plugins/paypal" }
 
 [features]
 manual_plugin = []
