@@ -14,3 +14,5 @@ CREATE TABLE IF NOT EXISTS product_translations (
     description   TEXT,
     UNIQUE (product_id, language_code)
 );
+
+CREATE INDEX IF NOT EXISTS idx_product_translations_product ON product_translations(product_id);
