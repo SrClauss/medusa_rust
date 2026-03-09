@@ -1,7 +1,7 @@
 # Medusa Rust — Plano de Implementação
 
-> **Última atualização:** 2026-03-07  
-> **Stack:** Axum + SQLx (PostgreSQL) + Moka cache + MinIO/S3  
+> **Última atualização:** 2026-03-09  
+> **Stack:** Axum + SQLx (PostgreSQL) + Moka cache + MinIO/S3 + Plugin System  
 > **Objetivo:** Port completo do Medusa JS v2 para Rust
 
 ---
@@ -15,11 +15,13 @@
 | **Total** | **299** | **315** | **~97%** |
 
 > **Nota:** Fases 1–4 implementadas: price_preferences, campaigns, fulfillment_sets, claims, exchanges, returns (extendido), workflow_executions, notifications resend, fulfillment_providers, payment_collections, refund_reasons, reservations, product_tags, product_types, payments, plugins, shipping_option_types, feature_flags, order_changes. Todos como stubs retornando JSON plausível — seguindo a convenção do projeto.
+>
+> **Fase 5 — Sistema de Plugins de Pagamento** implementada: crate `plugin_api` com trait `PaymentProvider` assíncrono + 4 plugins prontos para produção (Asaas, Mercado Pago, Stripe, PayPal).
 
 ## Cobertura de Testes
 
-| Suite de Testes | Arquivo | Testes |
-|-----------------|---------|--------|
+| Suite de Testes | Arquivo / Pacote | Testes |
+|-----------------|-----------------|--------|
 | Auth global | `tests/auth_tests.rs` | 7 |
 | Returns admin | `tests/returns_tests.rs` | 3 |
 | Currencies | `tests/currencies_tests.rs` | 4 |
@@ -27,10 +29,63 @@
 | Novas rotas admin (fase 1) | `tests/admin_new_routes_tests.rs` | 43 |
 | Rotas admin abrangentes | `tests/admin_routes_tests.rs` | 106 |
 | Rotas store abrangentes | `tests/store_routes_tests.rs` | 55 |
-| Rotas fases 2-4 (price_preferences, campaigns, claims, exchanges, returns ext., workflow_executions, fulfillment_sets, fulfillment_providers, payment_collections, refund_reasons, reservations, product_tags, product_types, payments, plugins, shipping_option_types, feature_flags) | `tests/phase2_routes_tests.rs` | 55 |
-| **Total** | | **277** |
+| Rotas fases 2-4 | `tests/phase2_routes_tests.rs` | 55 |
+| **Plugin Asaas** | `asaas_plugin` | **11** |
+| **Plugin Mercado Pago** | `mercadopago_plugin` | **11** |
+| **Plugin Stripe** | `stripe_plugin` | **12** |
+| **Plugin PayPal** | `paypal_plugin` | **12** |
+| **Total** | | **323** |
 
-> **Meta de cobertura de testes atingida: ≥ 97%** — todos os grupos de rotas possuem pelo menos um teste de existência (not-404), autenticação (401) e método HTTP (not-405).
+> **Meta de cobertura de testes atingida: ≥ 97%** — todos os grupos de rotas possuem pelo menos um teste de existência (not-404), autenticação (401) e método HTTP (not-405).  
+> Os testes de plugins usam `mockito` para simular as APIs externas sem necessidade de banco de dados.
+
+---
+
+## Sistema de Plugins de Pagamento (Fase 5)
+
+### Arquitetura
+
+```
+crates/
+├── plugin_api/          # Trait PaymentProvider assíncrono + WebhookPayload, WebhookInfo, etc.
+└── plugins/
+    ├── asaas/           # Gateway brasileiro — PIX, Boleto, Cartão
+    ├── mercadopago/     # Mercado Pago — América Latina
+    ├── stripe/          # Stripe — internacional, PaymentIntents
+    └── paypal/          # PayPal — internacional, Orders API + OAuth2
+```
+
+### Trait `PaymentProvider` (plugin_api)
+
+| Método | Descrição |
+|--------|-----------|
+| `name()` | Identificador do provider |
+| `initialize(config)` | Inicializa com credenciais |
+| `create_payment(amount, currency, metadata)` | Cria sessão de pagamento |
+| `capture_payment(id, amount?)` | Captura pagamento autorizado |
+| `refund_payment(id, amount?, reason?)` | Reembolsa pagamento |
+| `cancel_payment(id)` | Cancela/estorna pagamento |
+| `get_webhook_action_and_data(payload)` | Parseia webhook do provedor |
+| `create_webhook(url, events)` | Registra endpoint no provedor |
+| `list_webhooks()` | Lista endpoints registrados |
+| `delete_webhook(id)` | Remove endpoint do provedor |
+| `update_webhook(id, events)` | Atualiza eventos de um endpoint |
+
+### Status de Implementação por Plugin
+
+| Funcionalidade | Asaas | Mercado Pago | Stripe | PayPal |
+|----------------|-------|-------------|--------|--------|
+| Criar pagamento | ✅ | ✅ | ✅ PaymentIntent | ✅ Order |
+| Capturar pagamento | ✅ receiveInCash | ✅ capture | ✅ capture | ✅ capture |
+| Reembolsar | ✅ | ✅ | ✅ Refunds API | ✅ Captures/refund |
+| Cancelar | ✅ DELETE | ✅ PUT cancelled | ✅ cancel | ✅ (sintético) |
+| Parsear webhooks | ✅ | ✅ | ✅ | ✅ |
+| Criar webhook via API | ✅ | ✅ | ✅ | ✅ |
+| Listar webhooks | ✅ | ✅ | ✅ | ✅ |
+| Excluir webhook | ✅ | ✅ | ✅ | ✅ |
+| Validação de assinatura | — | — | ✅ HMAC-SHA256 | — |
+| OAuth2 automático | — | — | — | ✅ |
+| Testes com mockito | ✅ 11 | ✅ 11 | ✅ 12 | ✅ 12 |
 
 ---
 
