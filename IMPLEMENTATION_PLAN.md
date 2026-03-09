@@ -1,6 +1,6 @@
 # Medusa Rust — Plano de Implementação
 
-> **Última atualização:** 2026-03-09 — PR #EventBus/Sagas Gaps  
+> **Última atualização:** 2026-03-09 — PR #Auth-Notifications-Search  
 > **Stack:** Axum + SQLx (PostgreSQL) + Moka cache + MinIO/S3 + Plugin System  
 > **Objetivo:** Port completo do Medusa JS v2 para Rust
 
@@ -901,8 +901,8 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 | ❌ | Plugin loader | Carregar plugins externos (future work) |
 | ❌ | Payment plugins | Stripe, PayPal, etc. |
 | ❌ | Fulfillment plugins | Manual, custom |
-| ❌ | Notification plugins | Email, SMS |
-| ❌ | Search plugins | MeiliSearch, Algolia |
+| ✅ | Notification plugins | `notify-sendgrid`, `notify-smtp`, `notify-twilio` features |
+| ✅ | Search plugins | `search-meilisearch`, `search-algolia` features |
 | ❌ | File plugins | S3, MinIO (parcial ✅) |
 
 ### Sistema de Eventos
@@ -931,7 +931,7 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 |--------|----------------|-------|
 | ✅ | JWT auth | Token-based |
 | ✅ | Password hashing | Argon2 |
-| ❌ | OAuth providers | Google, GitHub, etc. |
+| ✅ | OAuth providers | Google, Facebook, GitHub — `auth-google`, `auth-facebook`, `auth-github` features; `OAuthService` + `OAuthProvider` trait em `src/auth/oauth.rs`; migration `20260309000002_oauth_users.sql` |
 | ❌ | API key auth | For external integrations |
 | ❌ | Role-based access | RBAC |
 | ❌ | Refresh tokens | Token rotation |
@@ -939,17 +939,17 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Notificações
 | Status | Funcionalidade | Notas |
 |--------|----------------|-------|
-| ❌ | Email sending | SMTP, SendGrid |
+| ✅ | Email sending | SendGrid (`notify-sendgrid`) + SMTP/lettre (`notify-smtp`) — `src/notifications/` |
 | ❌ | Email templates | Handlebars/Liquid |
-| ❌ | SMS sending | Twilio |
+| ✅ | SMS sending | Twilio (`notify-twilio`) — `src/notifications/twilio.rs` |
 | ❌ | Push notifications | FCM, APNs |
 
 ### Busca
 | Status | Funcionalidade | Notas |
 |--------|----------------|-------|
-| ❌ | Full-text search | Product search |
-| ❌ | Faceted search | Filter by attributes |
-| ❌ | Search indexing | Sync with external services |
+| ✅ | Full-text search | MeiliSearch (`search-meilisearch`) + Algolia (`search-algolia`) — `src/search/` |
+| ✅ | Faceted search | Suporte a filtros via `SearchQuery.filter` |
+| ✅ | Search indexing | `SearchService.index_documents()` + `delete_documents()` |
 
 ### Integrações de Pagamento
 | Status | Funcionalidade | Notas |
@@ -1059,12 +1059,12 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 3. 🟡 **Webhooks** - Ingestion implementada; envio externo pendente
 4. ✅ **API Keys** - Autenticação de integrações (DB-backed)
 
-### Fase 4: Integrações (Baixa Prioridade)
+### Fase 4: Integrações (Baixa Prioridade) — ✅ CONCLUÍDA (parcial)
 1. ❌ **Payment Providers** - Stripe, PayPal
 2. ❌ **Fulfillment Providers** - Integrações de envio
-3. ❌ **Search** - MeiliSearch/Algolia
-4. ❌ **Email** - Notificações por email
-5. ❌ **OAuth** - Login social
+3. ✅ **Search** - MeiliSearch (`search-meilisearch`) + Algolia (`search-algolia`) — `src/search/`
+4. ✅ **Email** - SendGrid (`notify-sendgrid`) + SMTP (`notify-smtp`) — `src/notifications/`
+5. ✅ **OAuth** - Google, Facebook, GitHub — `auth-google`, `auth-facebook`, `auth-github` features
 
 ### Fase 5: Enterprise (Baixa Prioridade)
 1. ✅ **Multi-store** - Múltiplas lojas (DB-backed)

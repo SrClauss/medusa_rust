@@ -90,6 +90,15 @@ hex               = "0.4"
 # ── Optional — Redis (only with features redis-bus / redis-workflows) ──────────
 redis = { version = "0.24", features = ["aio", "tokio-comp", "connection-manager", "streams"], optional = true }
 
+# ── Optional — HTTP client (OAuth providers, SendGrid, MeiliSearch) ────────────
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false, optional = true }
+
+# ── URL percent-encoding (OAuth authorization URLs) ───────────────────────────
+urlencoding = "2.1"
+
+# ── Optional — SMTP email (notify-smtp) ────────────────────────────────────────
+lettre = { version = "0.11", features = ["tokio1", "tokio1-rustls-tls", "builder"], default-features = false, optional = true }
+
 # ── Object storage (MinIO / AWS S3 — S3-compatible) ────────────────────────────
 aws-sdk-s3           = "1"
 aws-config           = "1"
@@ -116,6 +125,26 @@ redis-workflows = ["dep:redis"]
 
 # Full distributed mode
 distributed = ["redis-bus", "redis-workflows"]
+
+# Auth providers (OAuth social login)
+auth-google   = ["dep:reqwest"]
+auth-facebook = ["dep:reqwest"]
+auth-github   = ["dep:reqwest"]
+auth-social   = ["auth-google", "auth-facebook", "auth-github"]
+
+# Notification providers
+notify-sendgrid = ["dep:reqwest"]
+notify-smtp     = ["dep:lettre"]
+notify-twilio   = ["dep:reqwest"]
+notifications   = ["notify-sendgrid", "notify-smtp", "notify-twilio"]
+
+# Search providers
+search-meilisearch = ["dep:reqwest"]
+search-algolia     = ["dep:reqwest"]
+search             = ["search-meilisearch", "search-algolia"]
+
+# Everything
+full = ["auth-social", "notifications", "search", "distributed"]
 
 [profile.release]
 lto           = true
