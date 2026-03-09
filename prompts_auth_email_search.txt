@@ -1,0 +1,596 @@
+# Prompt: Implementar Auth Social, Email/SMS e Search
+
+## FILOSOFIA DO PROJETO
+
+Este é um **PORT do MedusaJS para Rust**. Toda implementação deve:
+
+1. ✅ **Consultar PRIMEIRO** o código original em `vendor/medusa_js/`
+2. ✅ **Analisar** a arquitetura TypeScript/JavaScript
+3. ✅ **Adaptar** para Rust mantendo a mesma lógica e comportamento
+4. ✅ **Seguir** os padrões já estabelecidos no projeto (veja `crates/plugins/` como exemplo)
+
+**⚠️ IMPORTANTE**: NÃO invente padrões novos sem verificar como o MedusaJS implementa primeiro!
+
+---
+
+## Contexto Atual
+
+Três funcionalidades críticas estão com **stubs** ou **não implementadas**:
+
+### 1. OAuth Social Login
+- ✅ **Status atual**: Stub em `src/auth.rs` (OAuth2 traits definidos mas não implementados)
+- ❌ **Faltando**: Google, Facebook, GitHub providers reais
+- 📚 **Referência MedusaJS**: `packages/medusa/src/strategies/` (Google, Facebook providers)
+
+### 2. Email / SMS Notifications
+- ❌ **Status atual**: Não implementado
+- ❌ **Faltando**: SendGrid/SMTP para email, Twilio para SMS
+- 📚 **Referência MedusaJS**: 
+  - `packages/medusa/src/services/notification.ts`
+  - `packages/medusa-plugin-sendgrid/`
+  - `packages/medusa-plugin-twilio-sms/`
+
+### 3. Search (MeiliSearch/Algolia)
+- ❌ **Status atual**: Não implementado
+- ❌ **Faltando**: Integração com MeiliSearch ou Algolia
+- 📚 **Referência MedusaJS**: 
+  - `packages/medusa-plugin-meilisearch/`
+  - `packages/medusa-plugin-algolia/`
+
+---
+
+## ARQUITETURA MODULAR COM PROVIDERS OPCIONAIS
+
+Seguindo o padrão do Event Bus, estas features devem ser **opcionais** via Cargo features:
+
+```toml
+[features]
+default = []
+
+# Auth providers
+auth-google = ["oauth2", "reqwest"]
+auth-facebook = ["oauth2", "reqwest"]
+auth-github = ["oauth2", "reqwest"]
+
+# Notification providers
+notify-sendgrid = ["sendgrid"]
+notify-smtp = ["lettre"]
+notify-twilio = ["twilio"]
+
+# Search providers
+search-meilisearch = ["meilisearch-sdk"]
+search-algolia = ["algoliasearch"]
+
+# Grupos convenientes
+auth-social = ["auth-google", "auth-facebook", "auth-github"]
+notifications = ["notify-sendgrid", "notify-smtp", "notify-twilio"]
+search = ["search-meilisearch", "search-algolia"]
+
+# Tudo
+full = ["auth-social", "notifications", "search"]
+```
+
+---
+
+## PARTE 1: OAuth Social Login
+
+### 📚 Código de Referência Obrigatório
+
+**Leia PRIMEIRO**:
+```
+vendor/medusa_js/packages/medusa/src/strategies/google.ts
+vendor/medusa_js/packages/medusa/src/strategies/facebook.ts
+vendor/medusa_js/packages/medusa/src/strategies/admin.ts
+```
+
+**Foque em**:
+- Fluxo OAuth2 (authorization code flow)
+- Callback handling
+- User creation/lookup
+- Token exchange
+- Profile data extraction
+
+---
+
+### Task 1.1: Trait `OAuthProvider`
+
+**Arquivo**: `src/auth/oauth.rs` (novo)
+
+```rust
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthProfile {
+    pub provider: String,
+    pub provider_user_id: String,
+    pub email: Option<String>,
+    pub name: Option<String>,
+    pub avatar_url: Option<String>,
+    pub raw: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthTokens {
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+    pub expires_in: Option<u64>,
+    pub token_type: String,
+}
+
+#[async_trait]
+pub trait OAuthProvider: Send + Sync {
+    /// Nome do provider (ex: "google", "facebook")
+    fn name(&self) -> &str;
+    
+    /// URL de autorização (redireciona usuário)
+    fn authorization_url(&self, state: &str, redirect_uri: &str) -> anyhow::Result<String>;
+    
+    /// Troca authorization code por access token
+    async fn exchange_code(
+        &self,
+        code: &str,
+        redirect_uri: &str,
+    ) -> anyhow::Result<OAuthTokens>;
+    
+    /// Busca perfil do usuário com access token
+    async fn fetch_profile(&self, tokens: &OAuthTokens) -> anyhow::Result<OAuthProfile>;
+}
+```
+
+---
+
+### Task 1.2: Implementar `GoogleOAuthProvider`
+
+**Arquivo**: `src/auth/providers/google.rs` (novo)
+
+```rust
+#[cfg(feature = "auth-google")]
+use super::super::oauth::{OAuthProfile, OAuthProvider, OAuthTokens};
+#[cfg(feature = "auth-google")]
+use async_trait::async_trait;
+#[cfg(feature = "auth-google")]
+use oauth2::{
+    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl,
+    TokenResponse, TokenUrl, basic::BasicClient,
+};
+#[cfg(feature = "auth-google")]
+use reqwest;
+#[cfg(feature = "auth-google")]
+use serde::Deserialize;
+
+#[cfg(feature = "auth-google")]
+pub struct GoogleOAuthProvider {
+    client: BasicClient,
+    client_id: String,
+}
+
+#[cfg(feature = "auth-google")]
+#[derive(Debug, Deserialize)]
+struct GoogleUserInfo {
+    id: String,
+    email: Option<String>,
+    name: Option<String>,
+    picture: Option<String>,
+}
+
+#[cfg(feature = "auth-google")]
+impl GoogleOAuthProvider {
+    pub fn new(client_id: String, client_secret: String) -> anyhow::Result<Self> {
+        let auth_url = AuthUrl::new("https://accounts.google.com/o/oauth2/v2/auth".to_string())?;
+        let token_url = TokenUrl::new("https://oauth2.googleapis.com/token".to_string())?;
+        
+        let client = BasicClient::new(
+            ClientId::new(client_id.clone()),
+            Some(ClientSecret::new(client_secret)),
+            auth_url,
+            Some(token_url),
+        );
+        
+        Ok(Self { client, client_id })
+    }
+}
+
+#[cfg(feature = "auth-google")]
+#[async_trait]
+impl OAuthProvider for GoogleOAuthProvider {
+    fn name(&self) -> &str {
+        "google"
+    }
+    
+    fn authorization_url(&self, state: &str, redirect_uri: &str) -> anyhow::Result<String> {
+        let (auth_url, _) = self.client
+            .authorize_url(|| CsrfToken::new(state.to_string()))
+            .set_redirect_uri(std::borrow::Cow::Owned(RedirectUrl::new(redirect_uri.to_string())?))
+            .add_scope(oauth2::Scope::new("email".to_string()))
+            .add_scope(oauth2::Scope::new("profile".to_string()))
+            .url();
+        
+        Ok(auth_url.to_string())
+    }
+    
+    async fn exchange_code(
+        &self,
+        code: &str,
+        redirect_uri: &str,
+    ) -> anyhow::Result<OAuthTokens> {
+        use oauth2::reqwest::async_http_client;
+        
+        let token_result = self.client
+            .exchange_code(AuthorizationCode::new(code.to_string()))
+            .set_redirect_uri(std::borrow::Cow::Owned(RedirectUrl::new(redirect_uri.to_string())?))
+            .request_async(async_http_client)
+            .await?;
+        
+        Ok(OAuthTokens {
+            access_token: token_result.access_token().secret().clone(),
+            refresh_token: token_result.refresh_token().map(|t| t.secret().clone()),
+            expires_in: token_result.expires_in().map(|d| d.as_secs()),
+            token_type: "Bearer".to_string(),
+        })
+    }
+    
+    async fn fetch_profile(&self, tokens: &OAuthTokens) -> anyhow::Result<OAuthProfile> {
+        let client = reqwest::Client::new();
+        
+        let user_info: GoogleUserInfo = client
+            .get("https://www.googleapis.com/oauth2/v2/userinfo")
+            .bearer_auth(&tokens.access_token)
+            .send()
+            .await?
+            .json()
+            .await?;
+        
+        Ok(OAuthProfile {
+            provider: "google".to_string(),
+            provider_user_id: user_info.id.clone(),
+            email: user_info.email.clone(),
+            name: user_info.name.clone(),
+            avatar_url: user_info.picture.clone(),
+            raw: serde_json::to_value(&user_info)?,
+        })
+    }
+}
+```
+
+---
+
+### Task 1.3: Implementar `FacebookOAuthProvider`
+
+**Arquivo**: `src/auth/providers/facebook.rs` (similar ao Google)
+
+```rust
+#[cfg(feature = "auth-facebook")]
+use super::super::oauth::{OAuthProfile, OAuthProvider, OAuthTokens};
+// ... análogo ao Google, mas com:
+// - auth_url: "https://www.facebook.com/v12.0/dialog/oauth"
+// - token_url: "https://graph.facebook.com/v12.0/oauth/access_token"
+// - profile_url: "https://graph.facebook.com/me?fields=id,name,email,picture"
+```
+
+---
+
+### Task 1.4: Implementar `GitHubOAuthProvider`
+
+**Arquivo**: `src/auth/providers/github.rs`
+
+```rust
+#[cfg(feature = "auth-github")]
+// ... análogo, mas com:
+// - auth_url: "https://github.com/login/oauth/authorize"
+// - token_url: "https://github.com/login/oauth/access_token"
+// - profile_url: "https://api.github.com/user"
+```
+
+---
+
+### Task 1.5: Service `OAuthService`
+
+**Arquivo**: `src/auth/oauth_service.rs` (novo)
+
+```rust
+use super::oauth::{OAuthProfile, OAuthProvider};
+use crate::models::User;
+use sqlx::PgPool;
+use std::collections::HashMap;
+use std::sync::Arc;
+use uuid::Uuid;
+
+pub struct OAuthService {
+    providers: HashMap<String, Arc<dyn OAuthProvider>>,
+    db: PgPool,
+}
+
+impl OAuthService {
+    pub fn new(db: PgPool) -> Self {
+        Self {
+            providers: HashMap::new(),
+            db,
+        }
+    }
+    
+    /// Registra um provider
+    pub fn register_provider(&mut self, provider: Arc<dyn OAuthProvider>) {
+        let name = provider.name().to_string();
+        self.providers.insert(name, provider);
+        tracing::info!(provider = provider.name(), "OAuth provider registered");
+    }
+    
+    /// Retorna authorization URL
+    pub fn get_authorization_url(
+        &self,
+        provider_name: &str,
+        state: &str,
+        redirect_uri: &str,
+    ) -> anyhow::Result<String> {
+        let provider = self.providers.get(provider_name)
+            .ok_or_else(|| anyhow::anyhow!("Provider not found: {}", provider_name))?;
+        
+        provider.authorization_url(state, redirect_uri)
+    }
+    
+    /// Callback: troca code por token, busca perfil, cria/atualiza user
+    pub async fn handle_callback(
+        &self,
+        provider_name: &str,
+        code: &str,
+        redirect_uri: &str,
+    ) -> anyhow::Result<User> {
+        let provider = self.providers.get(provider_name)
+            .ok_or_else(|| anyhow::anyhow!("Provider not found: {}", provider_name))?;
+        
+        // 1. Troca code por tokens
+        let tokens = provider.exchange_code(code, redirect_uri).await?;
+        
+        // 2. Busca perfil
+        let profile = provider.fetch_profile(&tokens).await?;
+        
+        tracing::info!(
+            provider = %provider_name,
+            provider_user_id = %profile.provider_user_id,
+            email = ?profile.email,
+            "OAuth profile fetched"
+        );
+        
+        // 3. Busca ou cria user no banco
+        self.find_or_create_user(profile).await
+    }
+    
+    async fn find_or_create_user(&self, profile: OAuthProfile) -> anyhow::Result<User> {
+        // Busca por oauth_users table (provider + provider_user_id)
+        let existing = sqlx::query_as!(
+            User,
+            r#"
+            SELECT u.* FROM users u
+            INNER JOIN oauth_users ou ON ou.user_id = u.id
+            WHERE ou.provider = $1 AND ou.provider_user_id = $2
+            "#,
+            profile.provider,
+            profile.provider_user_id
+        )
+        .fetch_optional(&self.db)
+        .await?;
+        
+        if let Some(user) = existing {
+            return Ok(user);
+        }
+        
+        // Se não existe, cria novo user
+        let email = profile.email
+            .ok_or_else(|| anyhow::anyhow!("Email required for OAuth signup"))?;
+        
+        let mut tx = self.db.begin().await?;
+        
+        let user = sqlx::query_as!(
+            User,
+            r#"
+            INSERT INTO users (email, first_name, avatar_url, has_account, created_at, updated_at)
+            VALUES ($1, $2, $3, true, NOW(), NOW())
+            RETURNING *
+            "#,
+            email,
+            profile.name,
+            profile.avatar_url
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        
+        // Cria entrada em oauth_users
+        sqlx::query!(
+            r#"
+            INSERT INTO oauth_users (user_id, provider, provider_user_id, profile_data, created_at)
+            VALUES ($1, $2, $3, $4, NOW())
+            "#,
+            user.id,
+            profile.provider,
+            profile.provider_user_id,
+            profile.raw
+        )
+        .execute(&mut *tx)
+        .await?;
+        
+        tx.commit().await?;
+        
+        tracing::info!(
+            user_id = %user.id,
+            email = %email,
+            provider = %profile.provider,
+            "New user created via OAuth"
+        );
+        
+        Ok(user)
+    }
+}
+```
+
+---
+
+### Task 1.6: Migração SQL para OAuth
+
+**Arquivo**: `migrations/20260309000002_oauth_users.sql`
+
+```sql
+-- Tabela para vincular users com provedores OAuth
+CREATE TABLE oauth_users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,         -- "google", "facebook", "github"
+    provider_user_id TEXT NOT NULL, -- ID do usuário no provider
+    profile_data JSONB NOT NULL,    -- Dados completos do perfil
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(provider, provider_user_id)
+);
+
+CREATE INDEX idx_oauth_users_user_id ON oauth_users(user_id);
+CREATE INDEX idx_oauth_users_provider ON oauth_users(provider);
+```
+
+---
+
+### Task 1.7: Rotas OAuth
+
+**Arquivo**: `src/api/auth/oauth.rs` (novo)
+
+```rust
+use axum::{
+    extract::{Query, State},
+    response::{IntoResponse, Redirect},
+    Json,
+};
+use serde::{Deserialize, Serialize};
+use crate::auth::oauth_service::OAuthService;
+use crate::AppState;
+
+#[derive(Deserialize)]
+pub struct OAuthInitQuery {
+    provider: String,
+}
+
+#[derive(Deserialize)]
+pub struct OAuthCallbackQuery {
+    code: String,
+    state: String,
+}
+
+#[derive(Serialize)]
+pub struct OAuthUrlResponse {
+    url: String,
+}
+
+/// GET /auth/oauth?provider=google
+pub async fn oauth_init(
+    State(state): State<AppState>,
+    Query(query): Query<OAuthInitQuery>,
+) -> Result<Json<OAuthUrlResponse>, AppError> {
+    let oauth_service = state.oauth_service();
+    let csrf_token = uuid::Uuid::new_v4().to_string();
+    
+    // TODO: salvar csrf_token em Redis/session para validar no callback
+    
+    let redirect_uri = format!(
+        "{}/auth/oauth/callback?provider={}",
+        std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:9000"into()),
+        query.provider
+    );
+    
+    let url = oauth_service.get_authorization_url(
+        &query.provider,
+        &csrf_token,
+        &redirect_uri,
+    )?;
+    
+    Ok(Json(OAuthUrlResponse { url }))
+}
+
+/// GET /auth/oauth/callback?code=...&state=...&provider=google
+pub async fn oauth_callback(
+    State(state): State<AppState>,
+    Query(query): Query<OAuthCallbackQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    // TODO: validar query.state contra valor salvo
+    
+    let provider = /* extrair de query params ou session */;
+    
+    let oauth_service = state.oauth_service();
+    let redirect_uri = format!(
+        "{}/auth/oauth/callback?provider={}",
+        std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:9000"into()),
+        provider
+    );
+    
+    let user = oauth_service.handle_callback(&provider, &query.code, &redirect_uri).await?;
+    
+    // Cria sessão JWT
+    let token = state.auth_service().create_jwt(&user)?;
+    
+    // Redireciona para frontend com token
+    let frontend_url = format!(
+        "{}/auth/callback?token={}",
+        std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3000"into()),
+        token
+    );
+    
+    Ok(Redirect::to(&frontend_url))
+}
+```
+
+---
+
+## PARTE 2: Email / SMS Notifications
+
+### 📚 Código de Referência Obrigatório
+
+**Leia PRIMEIRO**:
+```
+vendor/medusa_js/packages/medusa/src/services/notification.ts
+vendor/medusa_js/packages/medusa-plugin-sendgrid/src/services/sendgrid.ts
+vendor/medusa_js/packages/medusa-plugin-twilio-sms/src/services/twilio-sms.ts
+```
+
+**Foque em**:
+- Interface `NotificationService`
+- Método `sendNotification()`
+- Templates de email/SMS
+- Event subscribers (order.placed → email)
+
+---
+
+### Task 2.1: Trait `NotificationProvider`
+
+**Arquivo**: `src/notifications/mod.rs` (novo)
+
+```rust
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Notification {
+    pub to: String,                     // email ou telefone
+    pub subject: Option<String>,        // só para email
+    pub template: String,               // template name
+    pub data: serde_json::Value,        // dados para template
+    pub from: Option<String>,           // opcional, usa default
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum NotificationChannel {
+    Email,
+    Sms,
+}
+
+#[async_trait]
+pub trait NotificationProvider: Send + Sync {
+    /// Nome do provider (ex: "sendgrid", "smtp", "twilio")
+    fn name(&self) -> &str;
+    
+    /// Canal que suporta (Email ou SMS)
+    fn channel(&self) -> NotificationChannel;
+    
+    /// Envia notificação
+    async fn send(&self, notification: Notification) -> anyhow::Result<()>;
+}
+```
+
+---
