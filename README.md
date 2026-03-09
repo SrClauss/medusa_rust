@@ -112,7 +112,11 @@ Após a inicialização:
 | **MinIO Console** | http://localhost:9001          | admin / minioadmin      |
 | **MinIO S3 API** | http://localhost:9002           | minioadmin / minioadmin |
 | **PostgreSQL**  | localhost:5432                   | medusa / medusa         |
-
+> **Observação**: o `docker-compose.yml` padrão não inicia um servidor de
+> busca como MeiliSearch. se você quiser testar a funcionalidade de busca
+> (`search-meilisearch` feature), adicione um serviço `meilisearch` ao
+> compose ou execute um contêiner separado e configure as variáveis de
+> ambiente `MEILISEARCH_URL`/`MEILISEARCH_API_KEY` conforme descrito abaixo.
 ### Verificar se está rodando
 
 ```bash
@@ -672,6 +676,10 @@ curl -X POST http://localhost:9000/admin/products \
 
 ### ✅ Implementado
 
+> Note: features de RBAC e multi-language estão planejadas, mas ainda não
+> têm middleware ou tabelas de tradução. essas responsabilidades aparecem
+> mais abaixo na seção "O que Falta".
+
 | Funcionalidade | Detalhes |
 |----------------|----------|
 | **JWT Authentication** | Tokens assinados com HS256, middleware de autenticação para admin e store |
@@ -695,6 +703,10 @@ curl -X POST http://localhost:9000/admin/products \
 | **OAuth Social Login** | `OAuthProvider` trait + Google, Facebook, GitHub implementations em `src/auth/providers/`; `OAuthService` em `src/auth/oauth_service.rs`; migração `20260309000002_oauth_users.sql`; features `auth-google`, `auth-facebook`, `auth-github` |
 | **Notifications** | `NotificationProvider` trait + SendGrid HTTP API (`notify-sendgrid`), SMTP via lettre (`notify-smtp`), Twilio SMS (`notify-twilio`); `NotificationService` registry em `src/notifications/` |
 | **Search** | `SearchProvider` trait + MeiliSearch REST client (`search-meilisearch`), Algolia REST client (`search-algolia`); `SearchService` em `src/search/`; operações: `index_documents`, `delete_documents`, `search` |
+
+| **RBAC / Roles** | modelo de roles/permissions definido; middleware e rotas ainda faltam |
+
+| **Multi-language** | suporte a locale ainda não implementado; tabela de traduções pendente |
 
 ### 🟡 Parcialmente Implementado
 
