@@ -61,8 +61,8 @@ MedusaRust é uma reimplementação em Rust do back-end do [MedusaJS v2](https:/
 | Object storage              | S3/MinIO               | S3/MinIO ✅                       |
 | Plugin system               | ✅                     | ✅ Trait `PaymentProvider` async + 4 plugins (Asaas, Mercado Pago, Stripe, PayPal) |
 | Payment Providers           | ✅ Stripe, PayPal, etc.| ✅ Asaas, Mercado Pago, Stripe, PayPal |
-| Event bus                   | ✅ (Redis/SQS)         | ❌ Não implementado               |
-| Workflows / Sagas           | ✅                     | ❌ Não implementado               |
+| Event bus                   | ✅ (Redis/SQS)         | ✅ Local broadcast + Redis/SQS stubs (configurable via `BUS_DRIVER`) |
+| Workflows / Sagas           | ✅                     | ✅ Saga state machine with steps + compensations (`src/sagas.rs`) |
 | Webhooks (receber)          | ✅                     | ✅ Rota `/hooks/payment/:provider` |
 | Webhooks (criar/gerenciar)  | ✅                     | ✅ API de criação/listagem/exclusão por plugin |
 | OAuth social login          | ✅                     | ❌ (stub)                         |
@@ -213,6 +213,11 @@ Copie `.env.example` para `.env` e ajuste conforme necessário:
 | `PAYPAL_CLIENT_ID`    | *(opcional)*                                    | Client ID da aplicação PayPal.                             |
 | `PAYPAL_CLIENT_SECRET`| *(opcional)*                                    | Client Secret da aplicação PayPal.                         |
 | `PAYPAL_BASE_URL`     | `https://api-m.sandbox.paypal.com`             | URL base da API PayPal (sandbox ou produção).              |
+| **Event Bus**         |                                                 |                                                            |
+| `BUS_DRIVER`          | `local`                                         | Driver do event bus: `local` (in-process), `redis` ou `sqs`. |
+| `REDIS_URL`           | `redis://127.0.0.1`                             | URL do Redis (somente quando `BUS_DRIVER=redis`).          |
+| `AWS_REGION`          | `us-east-1`                                     | Região AWS (somente quando `BUS_DRIVER=sqs`).              |
+| `AWS_SQS_URL`         | *(obrigatório para sqs)*                        | URL da fila SQS (somente quando `BUS_DRIVER=sqs`).         |
 
 ### Gerar JWT_SECRET seguro
 
@@ -626,6 +631,8 @@ curl -X POST http://localhost:9000/admin/products \
 | **Webhook Ingestion** | Rota `/hooks/payment/:provider` — parseia e normaliza eventos de todos os provedores |
 | **Stripe Webhook Signature** | Validação de assinatura `Stripe-Signature` com HMAC-SHA256 |
 | **PayPal OAuth2** | Obtenção automática de access token na inicialização do plugin |
+| **Event Bus** | Publish/subscribe de eventos de domínio com suporte a drivers `local`, `redis` e `sqs` |
+| **Workflows / Sagas** | Orquestração de processos com steps e compensações (rollback) |
 
 ### 🟡 Parcialmente Implementado
 
@@ -669,7 +676,6 @@ As seguintes funcionalidades existem no MedusaJS mas **ainda não estão impleme
 
 | Funcionalidade | Impacto |
 |----------------|---------|
-| **Event Bus** | Sem publish/subscribe de eventos de domínio |
 | **Scheduled Jobs** | Sem tarefas agendadas (expirar descontos, etc.) |
 | **Email / SMS** | Sem envio de emails transacionais ou SMS |
 | **Full-text Search** | Sem integração com MeiliSearch ou Algolia |
@@ -679,7 +685,6 @@ As seguintes funcionalidades existem no MedusaJS mas **ainda não estão impleme
 | **Multi-language** | Traduções e internacionalização ausentes |
 | **Admin Dashboard** | Sem UI admin (use o dashboard do MedusaJS apontando para esta API) |
 | **Store Credits (admin)** | CRUD de créditos de loja ausente |
-| **Workflow Engine** | Sagas e compensação transacional ausentes |
 
 ---
 

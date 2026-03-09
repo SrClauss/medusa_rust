@@ -9,6 +9,7 @@ mod routes_manifest;
 mod state;
 mod events;
 mod plugins;
+mod sagas;
 mod storage;
 mod wizard;
 
@@ -20,6 +21,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 use state::{AppState, StorageConfig};
 use crate::api::auth::EmailPasswordService;
 use storage::{cache::build_cache, db::create_pool, s3::S3Storage};
+use events::EventBus;
 
 // Payment plugins
 use plugin_api::PaymentProvider as _;
@@ -76,6 +78,7 @@ async fn main() -> anyhow::Result<()> {
         auth_service:   Arc::new(auth_service),
         payment_methods: Arc::new(tokio::sync::Mutex::new(Vec::new())),
         plugin_mgr:      Arc::new(tokio::sync::Mutex::new(crate::plugins::PluginManager::new())),
+        event_bus:       Arc::new(EventBus::from_env()),
     };
 
     // feature-gated built-in plugin registration

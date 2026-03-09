@@ -15,8 +15,11 @@ pub mod wizard;
 pub mod plugins;
 
 // event bus
-mod events;
-pub use events::EventBus;
+pub mod events;
+pub use events::{BusDriver, Event, EventBus, EventHandler};
+
+// sagas / workflow orchestration
+pub mod sagas;
 
 // re-export commonly used types
 pub use state::{AppState, StorageConfig};

@@ -854,17 +854,17 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 ### Sistema de Eventos
 | Status | Funcionalidade | Notas |
 |--------|----------------|-------|
-| ❌ | Event bus | Publish/subscribe |
-| ❌ | Event subscribers | Handlers para eventos |
+| ✅ | Event bus | Publish/subscribe com drivers `local`, `redis`, `sqs`; `EventHandler` trait; serde em eventos |
+| ✅ | Event subscribers | `bus.subscribe(handler)` — handlers em background tasks |
 | ❌ | Scheduled jobs | Cron-like tasks |
-| ❌ | Webhooks | Notificar sistemas externos |
+| 🟡 | Webhooks | Ingestion via `/hooks/payment/:provider`; envio a endpoints externos pendente |
 
 ### Sistema de Workflows
 | Status | Funcionalidade | Notas |
 |--------|----------------|-------|
-| ❌ | Workflow engine | Orchestration |
-| ❌ | Compensation (saga) | Rollback support |
-| ❌ | Step functions | Custom steps |
+| ✅ | Workflow engine | `WorkflowEngine` com registro e execução de sagas |
+| ✅ | Compensation (saga) | `Saga` com rollback em ordem reversa |
+| ✅ | Step functions | `Saga::builder().step(action, compensation).build()` |
 
 ### Autenticação Avançada
 | Status | Funcionalidade | Notas |
