@@ -26,6 +26,8 @@
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 use anyhow::Result;
 use serde_json::Value;
+use async_trait::async_trait;
+use sqlx::Row;
 
 // ─── Step result ─────────────────────────────────────────────────────────────
 
@@ -286,5 +288,273 @@ impl WorkflowEngine {
     /// List all registered saga names.
     pub fn list(&self) -> Vec<&str> {
         self.sagas.keys().map(|s| s.as_str()).collect()
+    }
+
+    /// Get a reference to a saga by name.
+    pub fn get(&self, name: &str) -> Option<&Saga> {
+        self.sagas.get(name)
+    }
+}
+
+
+// ─── Persistent storage trait for sagas (Postgres implementation provided) ───
+
+#[async_trait]
+pub trait SagaStorage: Send + Sync {
+    async fn create_execution(
+        &self,
+        transaction_id: &str,
+        name: &str,
+        ctx: &SagaContext,
+    ) -> anyhow::Result<uuid::Uuid>;
+
+    async fn update_state(
+        &self,
+        id: uuid::Uuid,
+        state: &str,
+        current_step: Option<&str>,
+        error: Option<&str>,
+    ) -> anyhow::Result<()>;
+
+    async fn save_step(
+        &self,
+        exec_id: uuid::Uuid,
+        step_name: &str,
+        state: &str,
+        result: Option<Value>,
+        error: Option<&str>,
+    ) -> anyhow::Result<()>;
+
+    async fn load_by_transaction_id(
+        &self,
+        transaction_id: &str,
+    ) -> anyhow::Result<Option<(uuid::Uuid, String, SagaContext, String)>>;
+
+    async fn increment_retry(&self, id: uuid::Uuid) -> anyhow::Result<i32>;
+}
+
+pub struct PostgresSagaStorage {
+    pool: sqlx::PgPool,
+}
+
+impl PostgresSagaStorage {
+    pub fn new(pool: sqlx::PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+#[async_trait]
+impl SagaStorage for PostgresSagaStorage {
+    async fn create_execution(
+        &self,
+        transaction_id: &str,
+        name: &str,
+        ctx: &SagaContext,
+    ) -> anyhow::Result<uuid::Uuid> {
+        let ctx_json = serde_json::to_value(&ctx.data)?;
+
+        let id: uuid::Uuid = sqlx::query_scalar::<_, uuid::Uuid>(
+            r#"
+            INSERT INTO workflow_executions (transaction_id, workflow_name, state, context)
+            VALUES ($1, $2, 'not_started', $3)
+            RETURNING id
+            "#,
+        )
+        .bind(transaction_id)
+        .bind(name)
+        .bind(ctx_json)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(id)
+    }
+
+    async fn update_state(
+        &self,
+        id: uuid::Uuid,
+        state: &str,
+        current_step: Option<&str>,
+        error: Option<&str>,
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE workflow_executions
+            SET state = $1::workflow_state,
+                current_step = $2,
+                error = $3,
+                updated_at = NOW()
+            WHERE id = $4
+            "#,
+        )
+        .bind(state)
+        .bind(current_step)
+        .bind(error)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn save_step(
+        &self,
+        exec_id: uuid::Uuid,
+        step_name: &str,
+        state: &str,
+        result: Option<Value>,
+        error: Option<&str>,
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO workflow_steps (execution_id, step_name, state, invoke_result, error, started_at)
+            VALUES ($1, $2, $3::step_state, $4, $5, NOW())
+            ON CONFLICT (execution_id, step_name)
+            DO UPDATE SET
+                state = EXCLUDED.state,
+                invoke_result = EXCLUDED.invoke_result,
+                error = EXCLUDED.error,
+                completed_at = CASE WHEN EXCLUDED.state IN ('done', 'failed', 'reverted') THEN NOW() ELSE workflow_steps.completed_at END,
+                attempts = workflow_steps.attempts + 1
+            "#,
+        )
+        .bind(exec_id)
+        .bind(step_name)
+        .bind(state)
+        .bind(result)
+        .bind(error)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn load_by_transaction_id(
+        &self,
+        transaction_id: &str,
+    ) -> anyhow::Result<Option<(uuid::Uuid, String, SagaContext, String)>> {
+        let rec = sqlx::query(
+            r#"
+            SELECT id, workflow_name, context, state::TEXT as state
+            FROM workflow_executions
+            WHERE transaction_id = $1
+            "#,
+        )
+        .bind(transaction_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(r) = rec {
+            let id: uuid::Uuid = r.try_get("id")?;
+            let workflow_name: String = r.try_get("workflow_name")?;
+            let ctx_value: serde_json::Value = r.try_get("context")?;
+            let state: String = r.try_get("state")?;
+
+            let data: std::collections::HashMap<String, Value> = serde_json::from_value(ctx_value)?;
+            let ctx = SagaContext::with_data(data);
+            Ok(Some((id, workflow_name, ctx, state)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn increment_retry(&self, id: uuid::Uuid) -> anyhow::Result<i32> {
+        let retry_count: i32 = sqlx::query_scalar::<_, i32>(
+            r#"
+            UPDATE workflow_executions
+            SET retry_count = retry_count + 1,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING retry_count
+            "#,
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(retry_count)
+    }
+}
+
+// ─── Persistent saga runner on Saga (idempotent) ─────────────────────────────
+
+impl Saga {
+    /// Execute saga with persistent storage and idempotency.
+    pub async fn run_persistent(
+        &self,
+        transaction_id: String,
+        initial_ctx: SagaContext,
+        storage: &dyn SagaStorage,
+    ) -> anyhow::Result<SagaOutcome> {
+        // Check idempotency
+        if let Some((exec_id, _name, saved_ctx, state)) = storage.load_by_transaction_id(&transaction_id).await? {
+            tracing::info!(transaction_id = %transaction_id, execution_id = %exec_id, state = %state, "Workflow already exists (idempotent)");
+
+            if state == "done" {
+                return Ok(SagaOutcome::Completed(saved_ctx));
+            } else if state == "reverted" || state == "failed" {
+                return Ok(SagaOutcome::Compensated {
+                    failed_step: "unknown".into(),
+                    error: anyhow::anyhow!("Previously failed"),
+                    context: saved_ctx,
+                });
+            }
+            // otherwise continue
+        }
+
+        // create execution
+        let exec_id = storage.create_execution(&transaction_id, &self.name, &initial_ctx).await?;
+        storage.update_state(exec_id, "invoking", None, None).await?;
+
+        let mut ctx = initial_ctx;
+        let mut completed: Vec<&StepDef> = Vec::new();
+
+        for step in &self.steps {
+            storage.update_state(exec_id, "invoking", Some(&step.name), None).await?;
+            storage.save_step(exec_id, &step.name, "invoking", None, None).await?;
+
+            tracing::debug!(transaction_id = %transaction_id, saga = %self.name, step = %step.name, "Executing step");
+
+            match (step.action)(ctx.clone()).await {
+                Ok((new_ctx, result)) => {
+                    ctx = new_ctx;
+                    storage.save_step(exec_id, &step.name, "done", result.output.clone(), None).await?;
+                    if let Some(output) = result.output {
+                        ctx.set(step.name.clone(), output);
+                    }
+                    completed.push(step);
+                }
+                Err(e) => {
+                    let err_msg = e.to_string();
+                    tracing::warn!(transaction_id = %transaction_id, saga = %self.name, step = %step.name, error = %e, "Step failed — running compensations");
+                    storage.save_step(exec_id, &step.name, "failed", None, Some(&err_msg)).await?;
+                    storage.update_state(exec_id, "compensating", Some(&step.name), Some(&err_msg)).await?;
+
+                    for prev in completed.iter().rev() {
+                        if let Some(comp) = &prev.compensation {
+                            storage.save_step(exec_id, &prev.name, "compensating", None, None).await?;
+                            match (comp)(ctx.clone()).await {
+                                Ok(new_ctx) => {
+                                    ctx = new_ctx;
+                                    storage.save_step(exec_id, &prev.name, "reverted", None, None).await?;
+                                }
+                                Err(ce) => {
+                                    let ce_msg = ce.to_string();
+                                    storage.save_step(exec_id, &prev.name, "failed", None, Some(&ce_msg)).await?;
+                                    tracing::error!(saga = %self.name, step = %prev.name, error = %ce, "Compensation failed");
+                                }
+                            }
+                        }
+                    }
+
+                    storage.update_state(exec_id, "reverted", None, Some(&err_msg)).await?;
+                    return Ok(SagaOutcome::Compensated {
+                        failed_step: step.name.clone(),
+                        error: e,
+                        context: ctx,
+                    });
+                }
+            }
+        }
+
+        storage.update_state(exec_id, "done", None, None).await?;
+        tracing::info!(transaction_id = %transaction_id, saga = %self.name, "Saga completed successfully");
+        Ok(SagaOutcome::Completed(ctx))
     }
 }

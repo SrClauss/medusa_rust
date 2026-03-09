@@ -20,7 +20,7 @@
 //! bus.publish(Event::OrderPlaced(OrderPlacedEvent { order_id: uuid, .. })).await.unwrap();
 //! ```
 
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration, collections::HashMap};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, Mutex};
@@ -171,11 +171,36 @@ impl Default for EmitOptions {
 
 // ─── EventBus ────────────────────────────────────────────────────────────────
 
+/// Event interceptor trait.
+#[async_trait]
+pub trait EventInterceptor: Send + Sync {
+    async fn intercept(&self, event: &mut Event) -> anyhow::Result<()>;
+}
+
+/// Handle returned to callers that can be used to cancel a subscription.
+pub struct SubscriptionHandle {
+    task: tokio::task::JoinHandle<()>,
+    id: Option<String>,
+}
+
+impl SubscriptionHandle {
+    pub fn cancel(self) {
+        self.task.abort();
+        tracing::debug!(id = ?self.id, "Subscription cancelled");
+    }
+
+    pub fn id(&self) -> Option<&str> {
+        self.id.as_deref()
+    }
+}
+
 /// Shared event bus handle.  Clone freely — all clones share the same channel.
 #[derive(Clone)]
 pub struct EventBus {
     driver: BusDriver,
     inner: Arc<Mutex<Option<broadcast::Sender<Event>>>>,
+    grouped_events: Arc<Mutex<HashMap<String, Vec<Event>>>>,
+    interceptors: Arc<Mutex<Vec<Arc<dyn EventInterceptor>>>>,
 }
 
 impl EventBus {
@@ -211,6 +236,8 @@ impl EventBus {
         Self {
             driver,
             inner: Arc::new(Mutex::new(None)),
+            grouped_events: Arc::new(Mutex::new(HashMap::new())),
+            interceptors: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -231,11 +258,25 @@ impl EventBus {
         }
     }
 
+    /// Register an [`EventInterceptor`] that will be executed before publishing.
+    pub async fn add_interceptor(&self, interceptor: Arc<dyn EventInterceptor>) {
+        self.interceptors.lock().await.push(interceptor);
+        tracing::debug!("Interceptor registered");
+    }
+
+    async fn run_interceptors(&self, event: &mut Event) -> anyhow::Result<()> {
+        for interceptor in self.interceptors.lock().await.iter() {
+            interceptor.intercept(event).await?;
+        }
+        Ok(())
+    }
+
     /// Publish an event to all current subscribers.
     ///
     /// This is the primary API for domain code.  It sends immediately with no
-    /// delay and a single attempt.
-    pub async fn publish(&self, event: Event) -> anyhow::Result<()> {
+    /// delay and a single attempt. Interceptors are executed before delivery.
+    pub async fn publish(&self, mut event: Event) -> anyhow::Result<()> {
+        self.run_interceptors(&mut event).await?;
         let tx = self.sender().await;
         // It is not an error if there are no current subscribers.
         let _ = tx.send(event);
@@ -244,28 +285,39 @@ impl EventBus {
 
     /// Register an [`EventHandler`] that will receive every future event.
     ///
-    /// The handler is spawned in a background `tokio` task, so this method
-    /// returns immediately.
-    pub async fn subscribe<H>(&self, handler: H) -> anyhow::Result<()>
+    /// Returns a `SubscriptionHandle` allowing cancellation.
+    pub async fn subscribe_with_id<H>(&self, handler: H, subscriber_id: Option<String>) -> anyhow::Result<SubscriptionHandle>
     where
         H: EventHandler + Send + 'static,
     {
         let mut rx = self.sender().await.subscribe();
-        tokio::spawn(async move {
+        let id_clone = subscriber_id.clone();
+
+        let task = tokio::spawn(async move {
             loop {
                 match rx.recv().await {
                     Ok(event) => {
                         if let Err(e) = handler.handle(event).await {
-                            tracing::warn!(error = %e, "EventHandler returned error");
+                            tracing::warn!(subscriber_id = ?id_clone, error = %e, "Handler error");
                         }
                     }
                     Err(broadcast::error::RecvError::Lagged(n)) => {
-                        tracing::warn!(skipped = n, "EventBus receiver lagged — some events were skipped");
+                        tracing::warn!(skipped = n, "Subscriber lagged");
                     }
                     Err(broadcast::error::RecvError::Closed) => break,
                 }
             }
         });
+
+        Ok(SubscriptionHandle { task, id: subscriber_id })
+    }
+
+    /// Backward-compatible subscribe that does not return a handle.
+    pub async fn subscribe<H>(&self, handler: H) -> anyhow::Result<()>
+    where
+        H: EventHandler + Send + 'static,
+    {
+        let _ = self.subscribe_with_id(handler, None).await?;
         Ok(())
     }
 
@@ -303,6 +355,51 @@ impl EventBus {
                 }
             }
         });
+    }
+
+    /// Emitar (enfileirar) um evento em um grupo identificado por `group_id`.
+    /// Os eventos acumulados só serão emitidos quando `release_grouped` for chamado.
+    pub async fn emit_grouped(&self, group_id: &str, event: Event) -> anyhow::Result<()> {
+        let mut groups = self.grouped_events.lock().await;
+        groups.entry(group_id.to_string())
+            .or_insert_with(Vec::new)
+            .push(event);
+        tracing::debug!(group_id = %group_id, "Event queued in group");
+        Ok(())
+    }
+
+    /// Libera (emite) todos os eventos acumulados de um grupo.
+    pub async fn release_grouped(&self, group_id: &str) -> anyhow::Result<()> {
+        let events = {
+            let mut groups = self.grouped_events.lock().await;
+            groups.remove(group_id).unwrap_or_default()
+        };
+
+        tracing::info!(group_id = %group_id, count = events.len(), "Releasing grouped events");
+
+        for mut event in events {
+            self.run_interceptors(&mut event).await?;
+            self.publish(event).await?;
+        }
+        Ok(())
+    }
+
+    /// Limpa os eventos de um grupo; se `event_names` for fornecido, filtra por nome.
+    pub async fn clear_grouped(&self, group_id: &str, event_names: Option<Vec<String>>) {
+        let mut groups = self.grouped_events.lock().await;
+
+        if let Some(names) = event_names {
+            if let Some(events) = groups.get_mut(group_id) {
+                events.retain(|e| {
+                    let event_name = format!("{:?}", e);
+                    !names.iter().any(|n| event_name.contains(n))
+                });
+            }
+        } else {
+            groups.remove(group_id);
+        }
+
+        tracing::debug!(group_id = %group_id, "Grouped events cleared");
     }
 
     /// Which driver this bus instance is using.

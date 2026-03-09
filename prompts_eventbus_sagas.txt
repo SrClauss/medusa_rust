@@ -1,0 +1,107 @@
+    FILOSOFIA DO PROJETO
+====================
+
+Este é um PORT do MedusaJS para Rust. Toda implementação deve:
+1. Consultar o código original em `vendor/medusa_js/`
+2. Analisar a arquitetura TypeScript/JavaScript
+3. Adaptar para Rust mantendo a mesma lógica e comportamento
+4. Seguir os padrões já estabelecidos no projeto (veja plugins em `crates/plugins/`)
+
+NÃO invente padrões novos sem verificar como o MedusaJS implementa primeiro!
+
+
+================================================================================
+
+Prompt 1 – Implementar Event Bus Distribuído
+
+    Contexto
+    Projeto `medusa_rust`, re‑implementação em Rust do MedusaJS.
+    O README indica:
+    `Event bus ✅ (Redis/SQS) ❌ Não implementado`.
+    Há um `EventBus` in‑process, mas é preciso um sistema de publicação/assinatura capaz de trabalhar com Redis ou SQS como no Medusa‑JS.
+    IMPORTANTE: Consulte o código original do MedusaJS em:
+    - `vendor/medusa_js/packages/modules/event-bus-local/` - implementação in-memory
+    - `vendor/medusa_js/packages/modules/event-bus-redis/` - implementação Redis
+    
+    Analise ESPECIALMENTE:
+    - Interface IEventBusService (definição do contrato)
+    - Como eventos são emitidos (emit, emitAsync)
+    - Como subscribers são registrados e executados
+    - Estrutura dos payloads de eventos
+    - Sistema de retries e error handling
+    - Padrões de nomes de eventos (ex: "order.placed", "payment.captured")
+    
+    Adapte toda essa arquitetura TypeScript para Rust, mantendo comportamento idêntico.
+    
+    Tarefa
+
+    1. Criar/estender módulo `event_bus` (ou crate separada) com abstração baseada no 
+       IEventBusService do MedusaJS:
+    ```rust
+    pub struct EventBus { … }
+    impl EventBus {
+        pub async fn publish(&self, event: Event) -> anyhow::Result<()>;
+        pub async fn subscribe<H>(&self, handler: H) -> anyhow::Result<()>
+            where H: EventHandler + Send + 'static;
+    }
+    ```
+    2. Suportar drivers: `local` (broadcast channel), `redis`, `sqs`. Configurável via `BUS_DRIVER` + `REDIS_URL`/`AWS_REGION`/`AWS_SQS_URL`.
+    3. Serializar eventos com `serde`; definir enum `Event` com alguns exemplos (`OrderPlaced`, `PaymentCaptured`, etc.).
+    4. Registrar instância em `AppState` e fornecer `StateExt::event_bus()`.
+    5. Atualizar rotas principais para **publicar** eventos adequados ao finalizar ações (pedido criado, pagamento autorizado…).
+    6. Escrever unit tests do bus usando `tokio::sync::broadcast` e mocks Redis/SQS.
+    7. Documentar no `README.md`/`IMPLEMENTATION_PLAN.md` como configurar e usar o bus.
+
+    Critérios de aceitação
+
+    - `cargo build` e `cargo test` passam com implementação do bus.
+    - Exemplo demonstrando publicador e assinante num teste de integração.
+    - Tabela do README atualizada marcando a linha “Event bus” como ✅.
+
+
+    Prompt 2 – Implementar Workflows / Sagas
+
+    Contexto
+    Ainda no mesmo repositório.
+    O README mostra:
+    `Workflows / Sagas ✅ ❌ Não implementado`.
+    Isso refere‑se à lógica de orquestração de processos longos (ex‑pedido, devolução) com compensações, igual ao pacote `@medusajs/workflow`.
+    IMPORTANTE: Consulte o código original do MedusaJS em:
+    - `vendor/medusa_js/packages/modules/workflow-engine-inmemory/` - workflow engine local
+    - `vendor/medusa_js/packages/modules/workflow-engine-redis/` - workflow engine Redis
+    
+    Estude como o MedusaJS implementa os conceitos de:
+    - Steps (passos) e compensações
+    - State machines e transições
+    - Hooks (quando/then/else)
+    - Persistência e retry de workflows
+    
+    Adapte toda essa lógica para Rust, mantendo a mesma estrutura e comportamento.
+    Use os workflows existentes no MedusaJS (order creation, returns, etc) como exemplos.
+    Tarefa
+
+    1. Criar crate `sagas` ou módulo `src/sagas.rs` com abstrações de máquina de estado:
+        ```rust
+        pub struct Saga<S> { /* state machine genérica */ }
+        impl<S> Saga<S> {
+            pub fn new(name: &str, initial: S) -> Self;
+            pub fn step<F, Fut>(self, name: &str, f: F) -> Self
+                where F: Fn(Context<S>) -> Fut + Send + 'static, Fut: Future;
+            pub fn on_error<F, Fut>(self, f: F) -> Self;
+            pub async fn run(self, ctx: Context<S>) -> anyhow::Result<()>;
+        }
+        ```
+    2. Gerenciar estado das sagas em tabela `sagas` (id, nome, estado, dados, atualizado_em).
+    3. Conectar as sagas ao `EventBus` (criado no prompt anterior) — listener que transforma eventos em transições.
+    4. Exemplos reais: `order_process` e `refund_process` com passos e compensações:
+        - `order_process`: reservar estoque → cobrar pagamento → confirmar pedido; compensar cancelando reserva e estornando pagamento em erro.
+        - `refund_process`: iniciar reembolso → devolver estoque; compensar se falhar.
+    5. Tests de unidade/integração das sagas, cobrindo caminho de sucesso e caminho de erro (com passo compensatório).
+    6. Atualizar `README.md`/`IMPLEMENTATION_PLAN.md` com explicação de como definir sagas, listar workflow ativo e configurar.
+
+    Critérios de sucesso
+
+    - Exemplos de saga compõem e executam sem panicar.
+    - Eventos disparados pelas rotas (do sistema) disparam transições.
+    - Tabela do README atualizada marcando “Workflows / Sagas” como ✅.
+    - `cargo test` do workspace passa incluindo `sagas` crate/module.
