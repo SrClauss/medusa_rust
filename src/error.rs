@@ -51,6 +51,12 @@ impl From<argon2::password_hash::Error> for AppError {
     }
 }
 
+impl From<serde_json::Error> for AppError {
+    fn from(e: serde_json::Error) -> Self {
+        AppError::BadRequest(e.to_string())
+    }
+}
+
 impl From<jsonwebtoken::errors::Error> for AppError {
     fn from(e: jsonwebtoken::errors::Error) -> Self {
         AppError::Unauthorized

@@ -2,5 +2,7 @@
 
 pub mod cart;
 pub mod inventory;
+
+pub mod payment;
 pub mod pricing;
 pub mod tax;

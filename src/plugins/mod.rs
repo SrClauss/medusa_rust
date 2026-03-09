@@ -53,6 +53,19 @@ pub trait Plugin: Send + Sync {
     }
 }
 
+/// A plugin that also provides payment capabilities.  This is a convenience
+/// wrapper; the core `Plugin` trait is still required so that the manager can
+/// treat all plugins uniformly.
+pub trait PaymentProviderPlugin: Plugin {
+    fn as_payment_provider(&self) -> &dyn crate::core::payment::PaymentProvider;
+}
+
+impl<T: Plugin + crate::core::payment::PaymentProvider> PaymentProviderPlugin for T {
+    fn as_payment_provider(&self) -> &dyn crate::core::payment::PaymentProvider {
+        self
+    }
+}
+
 /// Manages the set of plugins that have been loaded into the running process.
 ///
 /// The manager itself is stored in [`AppState`] behind a `Mutex` and is
@@ -61,6 +74,7 @@ pub trait Plugin: Send + Sync {
 #[derive(Default)]
 pub struct PluginManager {
     plugins: HashMap<String, Box<dyn Plugin>>,
+    payment_providers: HashMap<String, Box<dyn crate::core::payment::PaymentProvider>>,
 }
 
 impl PluginManager {
@@ -78,7 +92,19 @@ impl PluginManager {
     /// keeps the manager simple and avoids borrowing issues.
     pub fn register(&mut self, plugin: impl Plugin + 'static) {
         let id = plugin.id().to_string();
-        self.plugins.insert(id, Box::new(plugin));
+        // register generically
+        self.plugins.insert(id.clone(), Box::new(plugin));
+    }
+
+    /// Register a payment provider plugin so it can be looked up by ID.
+    pub fn register_payment_provider(&mut self, provider: impl crate::core::payment::PaymentProvider + 'static) {
+        let id = provider.id().to_string();
+        self.payment_providers.insert(id, Box::new(provider));
+    }
+
+    /// Retrieve a payment provider by its handle.
+    pub fn payment_provider(&self, id: &str) -> Option<&dyn crate::core::payment::PaymentProvider> {
+        self.payment_providers.get(id).map(|b| &**b)
     }
 
     /// Returns an immutable reference to a plugin by its id.

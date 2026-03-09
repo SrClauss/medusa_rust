@@ -7,6 +7,7 @@ mod error;
 mod models;
 mod routes_manifest;
 mod state;
+mod events;
 mod plugins;
 mod storage;
 mod wizard;

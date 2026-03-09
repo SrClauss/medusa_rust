@@ -817,6 +817,24 @@ fn test_plugins_list() {
     });
 }
 
+#[test]
+fn test_payment_webhook_endpoint() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let app = app();
+        // provider not registered -> should return 404
+        let payload = serde_json::json!({"foo":"bar"}).to_string();
+        let req = Request::builder()
+            .method("POST")
+            .uri("/hooks/payment/unknown")
+            .header("content-type", "application/json")
+            .body(Body::from(payload))
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    });
+}
+
 // ─── Shipping Option Types ────────────────────────────────────────────────────
 
 #[test]

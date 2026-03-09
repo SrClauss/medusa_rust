@@ -788,6 +788,7 @@ Middleware de autenticação global (`general_auth_middleware`) é aplicado a `/
 | Status | Funcionalidade | Notas |
 |--------|----------------|-------|
 | 🟡 | Base do mecanismo | Trait `Plugin` + `PluginManager` + rota `/admin/plugins` |
+| 🟡 | Webhook de provedores | rota POST `/hooks/payment/:provider` e estruturas de evento |
 | ❌ | Plugin loader | Carregar plugins externos (future work) |
 | ❌ | Payment plugins | Stripe, PayPal, etc. |
 | ❌ | Fulfillment plugins | Manual, custom |

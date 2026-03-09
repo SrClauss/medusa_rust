@@ -14,5 +14,9 @@ pub mod wizard;
 // extensibility plugins
 pub mod plugins;
 
+// event bus
+mod events;
+pub use events::EventBus;
+
 // re-export commonly used types
 pub use state::{AppState, StorageConfig};

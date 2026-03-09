@@ -530,6 +530,7 @@ curl -X POST http://localhost:9000/admin/products \
 | `POST` | `/admin/uploads` | Upload de arquivo |
 | `DELETE` | `/admin/uploads` | Excluir arquivos |
 | `GET`  | `/admin/plugins` | Listar plugins |
+| `POST` | `/hooks/payment/:provider` | Receber webhook de provedores de pagamento |
 | `GET`  | `/admin/feature-flags` | Feature flags |
 | `GET`  | `/admin/returns` | Listar devoluções |
 | `GET`  | `/admin/claims` | Listar reclamações |
