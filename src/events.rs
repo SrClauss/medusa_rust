@@ -200,12 +200,16 @@ impl EventBus {
                 tracing::debug!("EventBus: Local broadcast driver selected");
             }
         }
-        // For Redis/SQS we still maintain a local broadcast channel so that
-        // in-process subscribers always receive a copy.  A production
-        // implementation would add a background task that forwards to the
-        // external broker.
+        // Redis and SQS drivers currently use the in-process broadcast
+        // channel as their delivery mechanism (i.e. they behave like Local).
+        // The logging above signals the intended driver to operators.  A full
+        // production implementation would wire a background task here that
+        // forwards events to the external broker (redis-rs pub/sub or
+        // aws-sdk-sqs::send_message).  Until that forwarding is implemented,
+        // BUS_DRIVER=redis/sqs provides the same in-process guarantees as
+        // BUS_DRIVER=local and is clearly documented as a stub.
         Self {
-            driver: BusDriver::Local,
+            driver,
             inner: Arc::new(Mutex::new(None)),
         }
     }

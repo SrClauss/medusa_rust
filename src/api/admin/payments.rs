@@ -54,12 +54,14 @@ pub async fn capture(
     let amount = payload.get("amount").and_then(|v| v.as_i64());
 
     // Publish PaymentCaptured event
-    let _ = state.event_bus.publish(Event::PaymentCaptured(PaymentCapturedEvent {
+    if let Err(e) = state.event_bus.publish(Event::PaymentCaptured(PaymentCapturedEvent {
         payment_id: id,
         amount,
         currency_code: payload.get("currency_code").and_then(|v| v.as_str()).map(|s| s.to_string()),
         provider_id: payload.get("provider_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
-    })).await;
+    })).await {
+        tracing::warn!(error = %e, "Failed to publish PaymentCaptured event");
+    }
 
     Ok(Json(serde_json::json!({
         "payment": {

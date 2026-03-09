@@ -291,18 +291,22 @@ pub async fn complete(State(state): State<AppState>, Path(cart_id): Path<Uuid>) 
 
     // Publish domain events
     let total = cart["total"].as_i64().unwrap_or(0);
-    let _ = state.event_bus.publish(Event::CartCompleted(CartCompletedEvent {
+    if let Err(e) = state.event_bus.publish(Event::CartCompleted(CartCompletedEvent {
         cart_id,
         customer_id: Some(customer_id),
-    })).await;
-    let _ = state.event_bus.publish(Event::OrderPlaced(OrderPlacedEvent {
+    })).await {
+        tracing::warn!(error = %e, "Failed to publish CartCompleted event");
+    }
+    if let Err(e) = state.event_bus.publish(Event::OrderPlaced(OrderPlacedEvent {
         order_id,
         display_id,
         customer_id,
         email: email.to_string(),
         currency_code: currency.clone(),
         total,
-    })).await;
+    })).await {
+        tracing::warn!(error = %e, "Failed to publish OrderPlaced event");
+    }
 
     Ok(Json(serde_json::json!({"type":"order","data":{
         "id":order_id, "status":"pending",
