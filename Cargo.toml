@@ -87,6 +87,9 @@ tempfile          = "3"
 mime              = "0.3"
 hex               = "0.4"
 
+# ── Optional — Redis (only with features redis-bus / redis-workflows) ──────────
+redis = { version = "0.24", features = ["aio", "tokio-comp", "connection-manager", "streams"], optional = true }
+
 # ── Object storage (MinIO / AWS S3 — S3-compatible) ────────────────────────────
 aws-sdk-s3           = "1"
 aws-config           = "1"
@@ -100,7 +103,19 @@ stripe_plugin        = { path = "crates/plugins/stripe" }
 paypal_plugin        = { path = "crates/plugins/paypal" }
 
 [features]
+default = ["local-bus", "local-workflows"]
 manual_plugin = []
+
+# Event Bus modes
+local-bus = []
+redis-bus = ["dep:redis"]
+
+# Workflow modes
+local-workflows = []
+redis-workflows = ["dep:redis"]
+
+# Full distributed mode
+distributed = ["redis-bus", "redis-workflows"]
 
 [profile.release]
 lto           = true

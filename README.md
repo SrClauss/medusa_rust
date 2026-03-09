@@ -61,8 +61,8 @@ MedusaRust é uma reimplementação em Rust do back-end do [MedusaJS v2](https:/
 | Object storage              | S3/MinIO               | S3/MinIO ✅                       |
 | Plugin system               | ✅                     | ✅ Trait `PaymentProvider` async + 4 plugins (Asaas, Mercado Pago, Stripe, PayPal) |
 | Payment Providers           | ✅ Stripe, PayPal, etc.| ✅ Asaas, Mercado Pago, Stripe, PayPal |
-| Event bus                   | ✅ (Redis/SQS)         | ✅ Local broadcast + Redis/SQS stubs (configurable via `BUS_DRIVER`) |
-| Workflows / Sagas           | ✅                     | ✅ Saga state machine with steps + compensations (`src/sagas.rs`) |
+| Event bus                   | ✅ (Redis/SQS)         | ✅ Local broadcast + Redis real (`redis-bus` feature) + `SubscriptionHandle` com `cancel()` + `AuditInterceptor` |
+| Workflows / Sagas           | ✅                     | ✅ Saga state machine com steps + compensações; `execute_persistent()` + `execute_persistent_with_events()`; migração SQL |
 | Webhooks (receber)          | ✅                     | ✅ Rota `/hooks/payment/:provider` |
 | Webhooks (criar/gerenciar)  | ✅                     | ✅ API de criação/listagem/exclusão por plugin |
 | OAuth social login          | ✅                     | ❌ (stub)                         |
@@ -631,8 +631,8 @@ curl -X POST http://localhost:9000/admin/products \
 | **Webhook Ingestion** | Rota `/hooks/payment/:provider` — parseia e normaliza eventos de todos os provedores |
 | **Stripe Webhook Signature** | Validação de assinatura `Stripe-Signature` com HMAC-SHA256 |
 | **PayPal OAuth2** | Obtenção automática de access token na inicialização do plugin |
-| **Event Bus** | Publish/subscribe de eventos de domínio com suporte a drivers `local`, `redis` e `sqs` |
-| **Workflows / Sagas** | Orquestração de processos com steps e compensações (rollback) |
+| **Event Bus** | Publish/subscribe de eventos de domínio; drivers `local` (in-process) e `redis` (real, via feature `redis-bus`); `subscribe()` retorna `SubscriptionHandle` com `cancel()`; `AuditInterceptor` para auditoria em banco |
+| **Workflows / Sagas** | Orquestração com steps, compensações (rollback) e persistência; `execute_persistent()` com idempotência via `transaction_id`; `execute_persistent_with_events()` publica eventos no EventBus após conclusão/falha |
 
 ### 🟡 Parcialmente Implementado
 

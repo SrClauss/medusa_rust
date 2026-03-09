@@ -201,6 +201,10 @@ pub struct EventBus {
     inner: Arc<Mutex<Option<broadcast::Sender<Event>>>>,
     grouped_events: Arc<Mutex<HashMap<String, Vec<Event>>>>,
     interceptors: Arc<Mutex<Vec<Arc<dyn EventInterceptor>>>>,
+    #[cfg(feature = "redis-bus")]
+    redis_publisher: Option<Arc<tokio::sync::Mutex<redis::aio::ConnectionManager>>>,
+    #[cfg(feature = "redis-bus")]
+    redis_channel: String,
 }
 
 impl EventBus {
@@ -238,6 +242,11 @@ impl EventBus {
             inner: Arc::new(Mutex::new(None)),
             grouped_events: Arc::new(Mutex::new(HashMap::new())),
             interceptors: Arc::new(Mutex::new(Vec::new())),
+            #[cfg(feature = "redis-bus")]
+            redis_publisher: None,
+            #[cfg(feature = "redis-bus")]
+            redis_channel: std::env::var("REDIS_CHANNEL")
+                .unwrap_or_else(|_| "medusa:events".into()),
         }
     }
 
@@ -275,8 +284,27 @@ impl EventBus {
     ///
     /// This is the primary API for domain code.  It sends immediately with no
     /// delay and a single attempt. Interceptors are executed before delivery.
+    ///
+    /// When compiled with `redis-bus` feature and driver is `BusDriver::Redis`,
+    /// the event is published to the configured Redis channel via PUBLISH.
     pub async fn publish(&self, mut event: Event) -> anyhow::Result<()> {
         self.run_interceptors(&mut event).await?;
+
+        #[cfg(feature = "redis-bus")]
+        if self.driver == BusDriver::Redis {
+            if let Some(ref conn_manager) = self.redis_publisher {
+                let json = serde_json::to_string(&event)?;
+                let mut conn = conn_manager.lock().await;
+                redis::cmd("PUBLISH")
+                    .arg(&self.redis_channel)
+                    .arg(json)
+                    .query_async(&mut *conn)
+                    .await?;
+                tracing::debug!(channel = %self.redis_channel, "Published event to Redis");
+                return Ok(());
+            }
+        }
+
         let tx = self.sender().await;
         // It is not an error if there are no current subscribers.
         let _ = tx.send(event);
@@ -286,10 +314,40 @@ impl EventBus {
     /// Register an [`EventHandler`] that will receive every future event.
     ///
     /// Returns a `SubscriptionHandle` allowing cancellation.
+    ///
+    /// When compiled with `redis-bus` feature and driver is `BusDriver::Redis`,
+    /// the handler is wired to receive messages from the configured Redis channel.
     pub async fn subscribe_with_id<H>(&self, handler: H, subscriber_id: Option<String>) -> anyhow::Result<SubscriptionHandle>
     where
         H: EventHandler + Send + 'static,
     {
+        #[cfg(feature = "redis-bus")]
+        if self.driver == BusDriver::Redis {
+            let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1".into());
+            let channel = self.redis_channel.clone();
+            let id_clone = subscriber_id.clone();
+
+            let client = redis::Client::open(url)?;
+            let mut pubsub = client.get_async_pubsub().await?;
+            pubsub.subscribe(&channel).await?;
+
+            let task = tokio::spawn(async move {
+                use futures::StreamExt;
+                let mut stream = pubsub.on_message();
+                while let Some(msg) = stream.next().await {
+                    if let Ok(payload) = msg.get_payload::<String>() {
+                        if let Ok(event) = serde_json::from_str::<Event>(&payload) {
+                            if let Err(e) = handler.handle(event).await {
+                                tracing::warn!(subscriber_id = ?id_clone, error = %e, "Handler error");
+                            }
+                        }
+                    }
+                }
+            });
+
+            return Ok(SubscriptionHandle { task, id: subscriber_id });
+        }
+
         let mut rx = self.sender().await.subscribe();
         let id_clone = subscriber_id.clone();
 
@@ -312,13 +370,20 @@ impl EventBus {
         Ok(SubscriptionHandle { task, id: subscriber_id })
     }
 
-    /// Backward-compatible subscribe that does not return a handle.
-    pub async fn subscribe<H>(&self, handler: H) -> anyhow::Result<()>
+    /// Backward-compatible subscribe — now returns a `SubscriptionHandle`
+    /// allowing the caller to cancel the subscription at any time.
+    ///
+    /// # Migration note
+    /// Previously this returned `anyhow::Result<()>`. It now returns
+    /// `anyhow::Result<SubscriptionHandle>`. Callers that discard the result
+    /// (e.g. `bus.subscribe(...).await.unwrap();`) continue to compile unchanged
+    /// because dropping a `SubscriptionHandle` detaches — not cancels — the
+    /// background task.
+    pub async fn subscribe<H>(&self, handler: H) -> anyhow::Result<SubscriptionHandle>
     where
         H: EventHandler + Send + 'static,
     {
-        let _ = self.subscribe_with_id(handler, None).await?;
-        Ok(())
+        self.subscribe_with_id(handler, None).await
     }
 
     /// Subscribe and return the raw [`broadcast::Receiver`].
@@ -405,5 +470,233 @@ impl EventBus {
     /// Which driver this bus instance is using.
     pub fn driver(&self) -> &BusDriver {
         &self.driver
+    }
+
+    /// Initialise the Redis connection manager for publishing.
+    ///
+    /// Must be called after constructing the bus with `with_driver(BusDriver::Redis)`
+    /// before any `publish()` calls that should reach Redis.
+    ///
+    /// Reads `REDIS_URL` from the environment (defaults to `redis://127.0.0.1`).
+    #[cfg(feature = "redis-bus")]
+    pub async fn init_redis(&mut self) -> anyhow::Result<()> {
+        let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1".into());
+        let client = redis::Client::open(url)?;
+        let conn = redis::aio::ConnectionManager::new(client).await?;
+        self.redis_publisher = Some(Arc::new(tokio::sync::Mutex::new(conn)));
+        tracing::info!(channel = %self.redis_channel, "Redis connection manager initialised");
+        Ok(())
+    }
+}
+
+// ─── AuditInterceptor ─────────────────────────────────────────────────────────
+
+/// Interceptor that persists every event to the `event_audit` table in Postgres.
+///
+/// Requires the `event_audit` table from migration
+/// `20260309000001_workflow_persistence.sql`.
+pub struct AuditInterceptor {
+    db: sqlx::PgPool,
+}
+
+impl AuditInterceptor {
+    pub fn new(db: sqlx::PgPool) -> Self {
+        Self { db }
+    }
+}
+
+#[async_trait]
+impl EventInterceptor for AuditInterceptor {
+    async fn intercept(&self, event: &mut Event) -> anyhow::Result<()> {
+        let json = serde_json::to_value(&*event)?;
+        let event_type = match event {
+            Event::PaymentWebhook(_) => "PaymentWebhook",
+            Event::ShopWebhook(_) => "ShopWebhook",
+            Event::OrderPlaced(_) => "OrderPlaced",
+            Event::PaymentCaptured(_) => "PaymentCaptured",
+            Event::CustomerRegistered(_) => "CustomerRegistered",
+            Event::ProductCreated(_) => "ProductCreated",
+            Event::CartCompleted(_) => "CartCompleted",
+        };
+
+        sqlx::query(
+            "INSERT INTO event_audit (event_type, payload, created_at) VALUES ($1, $2, NOW())"
+        )
+        .bind(event_type)
+        .bind(json)
+        .execute(&self.db)
+        .await?;
+
+        Ok(())
+    }
+}
+
+// ─── Tests ───────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::time::Duration;
+
+    fn make_order_event() -> Event {
+        Event::OrderPlaced(OrderPlacedEvent {
+            order_id: uuid::Uuid::new_v4(),
+            display_id: 1,
+            customer_id: uuid::Uuid::new_v4(),
+            email: "test@test.com".into(),
+            currency_code: "usd".into(),
+            total: 1000,
+        })
+    }
+
+    #[tokio::test]
+    async fn test_publish_subscribe_with_handle() {
+        let bus = EventBus::new();
+        let counter = Arc::new(AtomicU32::new(0));
+        let c = counter.clone();
+
+        let _handle = bus.subscribe_with_id(
+            move |_: Event| {
+                let c = c.clone();
+                async move { c.fetch_add(1, Ordering::SeqCst); Ok(()) }
+            },
+            Some("test-sub".into()),
+        ).await.unwrap();
+
+        bus.publish(make_order_event()).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(counter.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn test_subscribe_returns_handle() {
+        let bus = EventBus::new();
+        let counter = Arc::new(AtomicU32::new(0));
+        let c = counter.clone();
+
+        let handle = bus.subscribe(move |_: Event| {
+            let c = c.clone();
+            async move { c.fetch_add(1, Ordering::SeqCst); Ok(()) }
+        }).await.unwrap();
+
+        bus.publish(make_order_event()).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(counter.load(Ordering::SeqCst), 1);
+
+        // cancel must stop receiving events
+        handle.cancel();
+
+        bus.publish(make_order_event()).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(counter.load(Ordering::SeqCst), 1, "Must stop after cancel()");
+    }
+
+    #[tokio::test]
+    async fn test_event_grouping_release() {
+        let bus = EventBus::new();
+        let counter = Arc::new(AtomicU32::new(0));
+        let c = counter.clone();
+
+        let _handle = bus.subscribe(move |_: Event| {
+            let c = c.clone();
+            async move { c.fetch_add(1, Ordering::SeqCst); Ok(()) }
+        }).await.unwrap();
+
+        bus.emit_grouped("tx1", make_order_event()).await.unwrap();
+        bus.emit_grouped("tx1", make_order_event()).await.unwrap();
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(counter.load(Ordering::SeqCst), 0, "Nothing must be emitted before release");
+
+        bus.release_grouped("tx1").await.unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(counter.load(Ordering::SeqCst), 2, "Both events must be emitted");
+    }
+
+    #[tokio::test]
+    async fn test_event_grouping_clear() {
+        let bus = EventBus::new();
+        let counter = Arc::new(AtomicU32::new(0));
+        let c = counter.clone();
+
+        let _handle = bus.subscribe(move |_: Event| {
+            let c = c.clone();
+            async move { c.fetch_add(1, Ordering::SeqCst); Ok(()) }
+        }).await.unwrap();
+
+        bus.emit_grouped("tx2", make_order_event()).await.unwrap();
+        bus.clear_grouped("tx2", None).await;
+        bus.release_grouped("tx2").await.unwrap();
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(counter.load(Ordering::SeqCst), 0, "Nothing must be emitted after clear");
+    }
+
+    #[tokio::test]
+    async fn test_interceptor() {
+        let bus = EventBus::new();
+        let intercepted = Arc::new(AtomicU32::new(0));
+
+        struct CountingInterceptor(Arc<AtomicU32>);
+        #[async_trait::async_trait]
+        impl EventInterceptor for CountingInterceptor {
+            async fn intercept(&self, _event: &mut Event) -> anyhow::Result<()> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            }
+        }
+
+        bus.add_interceptor(Arc::new(CountingInterceptor(intercepted.clone()))).await;
+        bus.publish(make_order_event()).await.unwrap();
+        assert_eq!(intercepted.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn test_unsubscribe_cancels_task() {
+        let bus = EventBus::new();
+        let counter = Arc::new(AtomicU32::new(0));
+        let c = counter.clone();
+
+        let handle = bus.subscribe_with_id(
+            move |_: Event| {
+                let c = c.clone();
+                async move { c.fetch_add(1, Ordering::SeqCst); Ok(()) }
+            },
+            Some("cancellable".into()),
+        ).await.unwrap();
+
+        bus.publish(make_order_event()).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(counter.load(Ordering::SeqCst), 1);
+
+        handle.cancel();
+
+        bus.publish(make_order_event()).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(counter.load(Ordering::SeqCst), 1, "Cancelled handle must not receive more events");
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "redis-bus")]
+    #[ignore] // Requires a running Redis instance
+    async fn test_redis_publish_subscribe() {
+        std::env::set_var("REDIS_URL", "redis://127.0.0.1");
+        std::env::set_var("REDIS_CHANNEL", "medusa:test");
+
+        let mut bus = EventBus::with_driver(BusDriver::Redis);
+        bus.init_redis().await.unwrap();
+
+        let counter = Arc::new(AtomicU32::new(0));
+        let c = counter.clone();
+
+        let _handle = bus.subscribe(move |_: Event| {
+            let c = c.clone();
+            async move { c.fetch_add(1, Ordering::SeqCst); Ok(()) }
+        }).await.unwrap();
+
+        bus.publish(make_order_event()).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(counter.load(Ordering::SeqCst), 1);
     }
 }
