@@ -71,10 +71,15 @@ impl<T: Plugin + crate::core::payment::PaymentProvider> PaymentProviderPlugin fo
 /// The manager itself is stored in [`AppState`] behind a `Mutex` and is
 /// intended to be manipulated only from the main thread during startup; the
 /// handlers will usually read from it only.
+///
+/// Two payment provider maps are maintained:
+/// - `payment_providers` — legacy synchronous trait objects (`crate::core::payment::PaymentProvider`)
+/// - `async_payment_providers` — new async trait objects (`plugin_api::PaymentProvider`)
 #[derive(Default)]
 pub struct PluginManager {
     plugins: HashMap<String, Box<dyn Plugin>>,
     payment_providers: HashMap<String, Box<dyn crate::core::payment::PaymentProvider>>,
+    async_payment_providers: HashMap<String, Box<dyn plugin_api::PaymentProvider>>,
 }
 
 impl PluginManager {
@@ -96,15 +101,29 @@ impl PluginManager {
         self.plugins.insert(id.clone(), Box::new(plugin));
     }
 
-    /// Register a payment provider plugin so it can be looked up by ID.
+    /// Register a legacy (synchronous) payment provider plugin.
     pub fn register_payment_provider(&mut self, provider: impl crate::core::payment::PaymentProvider + 'static) {
         let id = provider.id().to_string();
         self.payment_providers.insert(id, Box::new(provider));
     }
 
-    /// Retrieve a payment provider by its handle.
+    /// Register an async payment provider from `plugin_api`.
+    ///
+    /// This is the preferred method for registering the bundled payment plugins
+    /// (Asaas, Mercado Pago, Stripe, PayPal).
+    pub fn register_async_payment_provider(&mut self, provider: impl plugin_api::PaymentProvider + 'static) {
+        let id = provider.name().to_string();
+        self.async_payment_providers.insert(id, Box::new(provider));
+    }
+
+    /// Retrieve a legacy (synchronous) payment provider by its handle.
     pub fn payment_provider(&self, id: &str) -> Option<&dyn crate::core::payment::PaymentProvider> {
         self.payment_providers.get(id).map(|b| &**b)
+    }
+
+    /// Retrieve an async payment provider by its handle.
+    pub fn async_payment_provider(&self, id: &str) -> Option<&dyn plugin_api::PaymentProvider> {
+        self.async_payment_providers.get(id).map(|b| &**b)
     }
 
     /// Returns an immutable reference to a plugin by its id.
@@ -115,6 +134,11 @@ impl PluginManager {
     /// Return a list of all registered plugins.
     pub fn list(&self) -> Vec<&dyn Plugin> {
         self.plugins.values().map(|b| &**b).collect()
+    }
+
+    /// Return a list of all registered async payment provider names.
+    pub fn list_async_payment_providers(&self) -> Vec<&str> {
+        self.async_payment_providers.keys().map(|k| k.as_str()).collect()
     }
 }
 

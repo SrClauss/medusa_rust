@@ -59,10 +59,12 @@ MedusaRust é uma reimplementação em Rust do back-end do [MedusaJS v2](https:/
 | Autenticação                | JWT + bcrypt           | JWT + Argon2                      |
 | Cache                       | Redis (opcional)       | Moka in-process (padrão)          |
 | Object storage              | S3/MinIO               | S3/MinIO ✅                       |
-| Plugin system               | 🟡 Parcialmente         | ✅ Estrutura básica com rota de listagem, manager e suporte a plugins estáticos |
+| Plugin system               | ✅                     | ✅ Trait `PaymentProvider` async + 4 plugins (Asaas, Mercado Pago, Stripe, PayPal) |
+| Payment Providers           | ✅ Stripe, PayPal, etc.| ✅ Asaas, Mercado Pago, Stripe, PayPal |
 | Event bus                   | ✅ (Redis/SQS)         | ❌ Não implementado               |
 | Workflows / Sagas           | ✅                     | ❌ Não implementado               |
-| Webhooks                    | ✅                     | ❌ Não implementado               |
+| Webhooks (receber)          | ✅                     | ✅ Rota `/hooks/payment/:provider` |
+| Webhooks (criar/gerenciar)  | ✅                     | ✅ API de criação/listagem/exclusão por plugin |
 | OAuth social login          | ✅                     | ❌ (stub)                         |
 | Email / SMS                 | ✅                     | ❌ Não implementado               |
 | Search (MeiliSearch/Algolia)| ✅                     | ❌ Não implementado               |
@@ -199,6 +201,18 @@ Copie `.env.example` para `.env` e ajuste conforme necessário:
 | `MOKA_MAX_CAPACITY`   | `10000`                                         | Número máximo de entradas no cache in-process              |
 | `MOKA_TTL_SECS`       | `300`                                           | Tempo de vida das entradas de cache (segundos)             |
 | `UPLOAD_DIR`          | `uploads`                                       | Diretório local de upload (fallback quando S3 não configurado) |
+| **Plugin Asaas**      |                                                 |                                                            |
+| `ASAAS_API_KEY`       | *(opcional)*                                    | API key do Asaas. Se ausente, o plugin é ignorado na inicialização. |
+| `ASAAS_BASE_URL`      | `https://sandbox.asaas.com/api/v3`             | URL base da API Asaas (sandbox ou produção)                |
+| **Plugin Mercado Pago** |                                               |                                                            |
+| `MP_ACCESS_TOKEN`     | *(opcional)*                                    | Access token do Mercado Pago. Se ausente, o plugin é ignorado. |
+| **Plugin Stripe**     |                                                 |                                                            |
+| `STRIPE_SECRET_KEY`   | *(opcional)*                                    | Chave secreta da API Stripe (`sk_live_...` ou `sk_test_...`). |
+| `STRIPE_WEBHOOK_SECRET` | *(opcional)*                                  | Segredo para validação de webhooks Stripe (`whsec_...`).   |
+| **Plugin PayPal**     |                                                 |                                                            |
+| `PAYPAL_CLIENT_ID`    | *(opcional)*                                    | Client ID da aplicação PayPal.                             |
+| `PAYPAL_CLIENT_SECRET`| *(opcional)*                                    | Client Secret da aplicação PayPal.                         |
+| `PAYPAL_BASE_URL`     | `https://api-m.sandbox.paypal.com`             | URL base da API PayPal (sandbox ou produção).              |
 
 ### Gerar JWT_SECRET seguro
 
@@ -208,7 +222,51 @@ openssl rand -hex 64
 
 ---
 
-## Autenticação
+## Plugins de Pagamento
+
+O MedusaRust inclui um sistema completo de plugins de pagamento com 4 provedores prontos para uso. Cada plugin é um crate Rust independente dentro do workspace.
+
+### Provedores disponíveis
+
+| Provedor | Crate | Moedas | Recursos |
+|----------|-------|--------|----------|
+| **Asaas** | `asaas_plugin` | BRL | PIX, Boleto, Cartão — gateway brasileiro |
+| **Mercado Pago** | `mercadopago_plugin` | BRL, USD, ARS... | PIX, Cartão — América Latina |
+| **Stripe** | `stripe_plugin` | USD, EUR, BRL... | PaymentIntents, validação de assinatura |
+| **PayPal** | `paypal_plugin` | USD, EUR... | Orders API, OAuth2 automático |
+
+### Configurar um plugin
+
+Cada plugin é ativado automaticamente na inicialização do servidor se suas variáveis de ambiente estiverem presentes. Por exemplo, para ativar o Stripe:
+
+```bash
+# .env
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+### Criar/gerenciar webhooks via código
+
+```rust
+use stripe_plugin::StripePlugin;
+use plugin_api::PaymentProvider;
+
+let id = plugin.create_webhook(
+    "https://meusite.com/hooks/payment/stripe",
+    vec!["payment_intent.succeeded".to_string()],
+).await?;
+
+let all = plugin.list_webhooks().await?;
+plugin.delete_webhook(&id).await?;
+```
+
+### Receber webhooks
+
+O servidor expõe a rota `POST /hooks/payment/:provider` para receber eventos de qualquer provedor registrado.
+
+Para mais detalhes, consulte [`crates/plugins/README.md`](crates/plugins/README.md) e o README individual de cada plugin.
+
+---
 
 A API usa **JWT (Bearer Token)**. Há dois contextos de autenticação:
 
@@ -562,13 +620,18 @@ curl -X POST http://localhost:9000/admin/products \
 | **Import de produtos (Excel/ZIP)** | Wizard de importação via arquivo Excel dentro de ZIP |
 | **Logs estruturados** | tracing + tracing-subscriber com filtro por nível (`RUST_LOG`) |
 | **Docker multi-stage** | Imagem de produção ~50 MB |
+| **Plugin System** | Trait `PaymentProvider` assíncrono (`plugin_api`), `PluginManager` com registro dinâmico |
+| **Payment Providers** | Asaas, Mercado Pago, Stripe e PayPal — criar/capturar/reembolsar/cancelar pagamentos |
+| **Gerenciamento de Webhooks** | Criar, listar e excluir webhooks via API REST em cada provedor de pagamento |
+| **Webhook Ingestion** | Rota `/hooks/payment/:provider` — parseia e normaliza eventos de todos os provedores |
+| **Stripe Webhook Signature** | Validação de assinatura `Stripe-Signature` com HMAC-SHA256 |
+| **PayPal OAuth2** | Obtenção automática de access token na inicialização do plugin |
 
 ### 🟡 Parcialmente Implementado
 
 | Funcionalidade | Estado |
 |----------------|--------|
 | **Multi-moeda** | Tabela e rotas de listagem; sem conversão automática |
-| **Payment Providers** | Rota de listagem; sem integração real com Stripe/PayPal |
 | **OAuth Providers** | Estrutura de rota presente; apenas email/password funciona |
 | **Fulfillment Providers** | Listagem; sem integração com transportadoras |
 
@@ -606,9 +669,7 @@ As seguintes funcionalidades existem no MedusaJS mas **ainda não estão impleme
 
 | Funcionalidade | Impacto |
 |----------------|---------|
-| **Plugin System** | Suporte inicial: manager, rota administrativa e API para registrar provedores. Não há carregamento dinâmico ou plugins de terceiros ainda. |
 | **Event Bus** | Sem publish/subscribe de eventos de domínio |
-| **Webhooks** | Sem notificações para sistemas externos |
 | **Scheduled Jobs** | Sem tarefas agendadas (expirar descontos, etc.) |
 | **Email / SMS** | Sem envio de emails transacionais ou SMS |
 | **Full-text Search** | Sem integração com MeiliSearch ou Algolia |
@@ -627,10 +688,16 @@ As seguintes funcionalidades existem no MedusaJS mas **ainda não estão impleme
 O projeto inclui testes de integração abrangentes:
 
 ```bash
-# Executar todos os testes
-cargo test
+# Executar todos os testes (incluindo plugins de pagamento)
+cargo test --workspace
 
-# Executar suite específica
+# Executar apenas os testes de um plugin específico
+cargo test --package asaas_plugin
+cargo test --package mercadopago_plugin
+cargo test --package stripe_plugin
+cargo test --package paypal_plugin
+
+# Executar suites de integração do servidor principal
 cargo test --test auth_tests
 cargo test --test admin_routes_tests
 cargo test --test store_routes_tests
@@ -641,8 +708,8 @@ cargo test -- --nocapture
 
 ### Suites de teste disponíveis
 
-| Suite | Arquivo | Testes |
-|-------|---------|--------|
+| Suite | Arquivo / Pacote | Testes |
+|-------|-----------------|--------|
 | Auth global | `tests/auth_tests.rs` | 7 |
 | Returns admin | `tests/returns_tests.rs` | 3 |
 | Currencies | `tests/currencies_tests.rs` | 4 |
@@ -651,10 +718,14 @@ cargo test -- --nocapture
 | Rotas admin | `tests/admin_routes_tests.rs` | 106 |
 | Rotas store | `tests/store_routes_tests.rs` | 55 |
 | Fases 2-4 | `tests/phase2_routes_tests.rs` | 55 |
-| Completion | `tests/completion_tests.rs` | — |
-| **Total** | | **~277** |
+| **Plugin Asaas** | `asaas_plugin` (integration) | **11** |
+| **Plugin Mercado Pago** | `mercadopago_plugin` (integration) | **11** |
+| **Plugin Stripe** | `stripe_plugin` (integration) | **12** |
+| **Plugin PayPal** | `paypal_plugin` (integration) | **12** |
+| **Total** | | **~323** |
 
-> ⚠️ Os testes de integração exigem uma instância PostgreSQL rodando. Use o `docker compose up -d postgres` antes de rodar os testes.
+> ⚠️ Os testes de integração do servidor exigem uma instância PostgreSQL rodando. Use `docker compose up -d postgres` antes de rodá-los.  
+> ✅ Os testes dos plugins de pagamento não precisam de banco de dados — usam `mockito` para simular as APIs externas.
 
 ---
 
@@ -662,13 +733,14 @@ cargo test -- --nocapture
 
 ```
 medusa_rust/
+├── Cargo.toml               # Workspace root + dependências do binário principal
 ├── src/
-│   ├── main.rs              # Ponto de entrada: compõe AppState e inicia o servidor
+│   ├── main.rs              # Ponto de entrada: compõe AppState, registra plugins e inicia o servidor
 │   ├── lib.rs               # Re-exportações para testes de integração
 │   ├── routes.rs            # Registro de todas as rotas
 │   ├── routes_manifest.rs   # Constantes de todas as rotas (para testes)
 │   ├── models.rs            # Structs de domínio compartilhados
-│   ├── state.rs             # AppState (pool, cache, S3, JWT)
+│   ├── state.rs             # AppState (pool, cache, S3, JWT, plugin_mgr)
 │   ├── error.rs             # Tipos de erro centralizados
 │   ├── api/
 │   │   ├── mod.rs           # build_router()
@@ -682,8 +754,11 @@ medusa_rust/
 │   ├── core/
 │   │   ├── cart.rs          # Lógica de carrinho
 │   │   ├── inventory.rs     # Lógica de inventário
+│   │   ├── payment.rs       # Trait PaymentProvider (síncrono, legado)
 │   │   ├── pricing.rs       # Cálculo de preços
 │   │   └── tax.rs           # Cálculo de impostos
+│   ├── plugins/
+│   │   └── mod.rs           # PluginManager (suporta providers síncronos e assíncronos)
 │   ├── storage/
 │   │   ├── db.rs            # Pool SQLx + migrações
 │   │   ├── s3.rs            # Cliente S3/MinIO
@@ -692,12 +767,28 @@ medusa_rust/
 │       ├── excel.rs         # Parser Excel (calamine)
 │       ├── zip_import.rs    # Import via ZIP
 │       └── slugify.rs       # Geração de slugs
+├── crates/
+│   ├── plugin_api/          # Trait PaymentProvider assíncrono e tipos comuns
+│   │   └── src/lib.rs
+│   └── plugins/
+│       ├── README.md        # Guia de arquitetura e como adicionar novos plugins
+│       ├── asaas/           # Plugin Asaas (gateway brasileiro)
+│       │   ├── src/{lib,plugin,types,webhooks}.rs
+│       │   └── tests/integration_tests.rs
+│       ├── mercadopago/     # Plugin Mercado Pago
+│       │   ├── src/{lib,plugin,types,webhooks}.rs
+│       │   └── tests/integration_tests.rs
+│       ├── stripe/          # Plugin Stripe (com validação de assinatura)
+│       │   ├── src/{lib,plugin,types,webhooks}.rs
+│       │   └── tests/integration_tests.rs
+│       └── paypal/          # Plugin PayPal (com OAuth2)
+│           ├── src/{lib,plugin,types,webhooks}.rs
+│           └── tests/integration_tests.rs
 ├── migrations/              # Migrações SQL (executadas automaticamente)
-├── tests/                   # Testes de integração
+├── tests/                   # Testes de integração do servidor principal
 ├── Dockerfile               # Multi-stage: builder Rust + runtime Debian slim
 ├── docker-compose.yml       # Stack completa: app + postgres + minio
 ├── .env.example             # Template de variáveis de ambiente
-├── Cargo.toml               # Dependências Rust
 └── IMPLEMENTATION_PLAN.md   # Plano detalhado de implementação e cobertura de rotas
 ```
 
@@ -717,20 +808,29 @@ Contribuições são bem-vindas! Siga as convenções do projeto:
 ### Comandos úteis
 
 ```bash
-# Compilar
+# Compilar workspace completo (incluindo plugins)
+cargo build --workspace
+
+# Compilar apenas o binário principal
 cargo build
 
 # Verificar erros de compilação (rápido)
-cargo check
+cargo check --workspace
 
 # Lint
-cargo clippy
+cargo clippy --workspace
 
 # Formatar código
-cargo fmt
+cargo fmt --all
 
-# Testes
+# Testes — servidor principal (requer PostgreSQL)
 cargo test
+
+# Testes — todos os plugins de pagamento (sem banco de dados)
+cargo test --package asaas_plugin --package mercadopago_plugin --package stripe_plugin --package paypal_plugin
+
+# Testes — workspace completo
+cargo test --workspace
 
 # Build de produção
 cargo build --release
