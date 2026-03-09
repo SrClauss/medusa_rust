@@ -13,6 +13,7 @@ pub mod customers;
 pub mod discounts;
 pub mod draft_orders;
 pub mod exchanges;
+pub mod languages;
 pub mod feature_flags;
 pub mod fulfillment_providers;
 pub mod fulfillment_sets;
@@ -37,6 +38,7 @@ pub mod regions;
 pub mod reservations;
 pub mod return_reasons;
 pub mod returns;
+pub mod roles;
 pub mod sales_channels;
 pub mod shipping_option_types;
 pub mod shipping_options;
@@ -260,6 +262,15 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
         // Currencies
         .route(ADMIN_CURRENCIES, get(currencies::list))
         .route(ADMIN_CURRENCIES_CODE, get(currencies::get).put(currencies::update))
+        // Roles (RBAC)
+        .route(ADMIN_ROLES, get(roles::list).post(roles::create))
+        .route(ADMIN_ROLES_ID, get(roles::get).put(roles::update).delete(roles::delete))
+        .route(ADMIN_USERS_ID_ROLES, get(roles::list_user_roles).post(roles::assign_role_to_user))
+        .route(ADMIN_USERS_ID_ROLES_ROLE_ID, delete(roles::remove_role_from_user))
+        // Languages (Multi-language)
+        .route(ADMIN_LANGUAGES, get(languages::list).post(languages::create))
+        .route(ADMIN_LANGUAGES_CODE, get(languages::get).delete(languages::delete))
+        .route(ADMIN_PRODUCTS_ID_TRANSLATIONS, get(languages::list_product_translations).post(languages::upsert_product_translation))
         // Batch Jobs
         .route(ADMIN_BATCH_JOBS, get(batch_jobs::list).post(batch_jobs::create))
         .route(ADMIN_BATCH_JOBS_ID, get(batch_jobs::get))
